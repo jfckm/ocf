@@ -5,11 +5,6 @@
 from ctypes import *
 import ocf_io
 
-#TODO implement proper DataObj class
-# class DataObj(Structure):
-    # _fields_ = [("type", c_uint8),
-
-
 OPS_NEW_IO = CFUNCTYPE(c_void_p, c_void_p)
 OPS_SUBMIT_IO = CFUNCTYPE(None, POINTER(ocf_io.OcfIo))
 OPS_SUBMIT_FLUSH = CFUNCTYPE(None, c_void_p)

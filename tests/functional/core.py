@@ -7,9 +7,6 @@ import data_obj as dobj
 import ocf
 import context
 
-OCF_CORE_NAME_SIZE = 32
-
-#TODO create proper Core class
 
 lib = ocf.OcfLib.getInstance()
 core_cfg = None
@@ -48,9 +45,6 @@ def add_core(cache, core):
 
     if 0 != lib.ocf_mngt_cache_add_core(cache, byref(core),
                                         byref(core_cfg)):
-        print("Add core err!")
+        print("--- Error during adding core!")
         exit(1)
-
-    return 0
-
 

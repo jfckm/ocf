@@ -11,7 +11,7 @@ INCDIR=$(ADAPTERDIR)/include
 
 CC=gcc
 CFLAGS=-g -Wall -I$(INCDIR) -I$(SRCDIR)
-LDFLAGS=-pthread -lm
+LDFLAGS=-pthread
 
 SRC=$(shell find $(SRCDIR) -name \*.c)
 OBJS=$(patsubst %.c, %.o, $(SRC))

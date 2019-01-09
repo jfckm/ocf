@@ -8,27 +8,19 @@ from ocf_io import *
 
 
 lib = ocf.OcfLib.getInstance()
-
 lib.ocf_core_new_io_wrapper.restype = POINTER(OcfIo)
-
 lib.ocf_io_set_cmpl_wrapper.argtypes = [POINTER(OcfIo), c_void_p, c_void_p,
                                                 IO_END]
-
 lib.ocf_io_configure_wrapper.argtypes = [POINTER(OcfIo), c_uint64, c_uint32,
                                               c_uint32, c_uint32, c_uint64]
-
 lib.ocf_io_set_queue_wrapper.argtypes = [POINTER(OcfIo), c_uint32]
 
-#TODO Move DataObj definition to its file
 class DataObjIo(Structure):
-    #TODO change data type to some array
     _fields_ = [("data", c_void_p),
-                # ("size", c_uint64),
                 ("offset", c_uint64)]
 
     def __init__(self, size):
         self.data = cast((c_byte * size)(), c_void_p)
-        # self.size = size
         self.offset = 0
 
 

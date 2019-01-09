@@ -29,7 +29,7 @@ core.add_core(cache_obj, core_obj)
 
 # Perform simply write/read IO
 io_offset = 0
-test_str = b'Litwo! Ojczyzno moja! ty jestes jak zdrowie'
+test_str = b'This is my sample data'
 data_len = len(test_str)
 write_data = io.Data()
 write_data.data = cast(test_str, c_void_p)

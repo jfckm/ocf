@@ -7,6 +7,7 @@ import ocf
 
 LOGGER_OPEN = CFUNCTYPE(c_int, c_void_p)
 LOGGER_CLOSE = CFUNCTYPE(None, c_void_p)
+# This one is implemented in c (see logger_helper.c file)
 # LOGGER_PRINTF = CFUNCTYPE()
 LOGGER_PRINTF_RL = CFUNCTYPE(c_int, c_char_p)
 LOGGER_DUMP_STACK = CFUNCTYPE(c_int, c_void_p)

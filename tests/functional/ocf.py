@@ -4,7 +4,6 @@
 #
 from ctypes import *
 
-
 lib = None
 
 class OcfLib:

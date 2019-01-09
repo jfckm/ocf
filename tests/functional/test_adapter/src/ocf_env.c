@@ -138,5 +138,6 @@ void env_stack_trace(void)
 
 uint32_t env_crc32(uint32_t crc, uint8_t const *data, size_t len)
 {
-	return crc32(crc, data, len);
+	/*return crc32(crc, data, len);*/
+	return 1;
 }

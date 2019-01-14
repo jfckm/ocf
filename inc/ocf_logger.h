@@ -32,10 +32,12 @@ struct ocf_logger {
 	void (*close)(const struct ocf_logger *logger);
 	int (*printf)(const struct ocf_logger *logger, ocf_logger_lvl_t lvl,
 			const char *fmt, va_list args);
-	int (*printf_rl)(const char *func_name);
-	int (*dump_stack)(const struct ocf_logger *logger);
-
-	void *priv;
+	int (*log)(ocf_logger_t logger, ocf_logger_lvl_t lvl, const char *msg);
+	int (*printf_rl)(ocf_logger_t logger, const char *func_name);
+	int (*dump_stack)(ocf_logger_t logger);
 };
+
+void ocf_logger_set_priv(ocf_logger_t logger, void *priv);
+
 
 #endif /* __OCF_LOGGER_H__ */

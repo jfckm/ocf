@@ -1,58 +1,63 @@
+#!/usr/bin/python3
 #
 # Copyright(c) 2019 Intel Corporation
 # SPDX-License-Identifier: BSD-3-Clause-Clear
 #
+
 from ctypes import *
-import ocf
-import test_data_obj as dobj
-import context
-import cache
-import core
-from ocf_io import *
-import io_utils as io
+import pprint
+
+from pyocf.ocf import OcfLib
+from pyocf import defaults
+from pyocf.types.data import Data
+from pyocf.types.data_object import DataObject
+from pyocf.types.logger import LogLevel
+from pyocf.types.cache import Cache
+from pyocf.types.core import Core
+from pyocf.types.io import IoDir
+
+from pyocf.utils import Size as S, print_structure
 
 # Load Ocf library
-lib = ocf.OcfLib.getInstance()
+lib = OcfLib.getInstance()
 
-# Initialize context
-context.InitCtx()
+c = defaults.get_default_ctx(defaults.DefaultLogger(LogLevel.DEBUG))
+c.register_data_object_type(DataObject)
+d1 = DataObject(200 * 1024 * 1024, "data1")
+d2 = DataObject(300 * 1024 * 1024, "data2")
 
-# Register data types
-dobj.register_data_obj_types()
+d3 = DataObject(300 * 1024 * 1024, "data3")
+cache = Cache.using_device(d1)
+core = Core.using_device(d2)
+core2 = Core.using_device(d3)
+cache.add_core(core)
+cache.add_core(core2)
 
-# Start cache instance and attach device
-cache_obj = cache.start_cache(cache.cache_mode["wt"])
+io1 = core.new_io()
+data1 = Data.from_string("This is MY data")
+io1.configure(0, data1.size, IoDir.WRITE, 0, 0)
+io1.set_data(data1)
+io1.submit()
 
-# Add core
-core_obj = c_void_p()
-core.add_core(cache_obj, core_obj)
+io1 = core2.new_io()
+io1.configure(8, data1.size, IoDir.WRITE, 0, 0)
+io1.set_data(data1)
+io1.submit()
 
-# Perform simply write/read IO
-io_offset = 0
-test_str = b'This is my sample data'
-data_len = len(test_str)
-write_data = io.Data()
-write_data.data = cast(test_str, c_void_p)
+io1.del_object()
 
-# Actual write
-io.write(io_offset, write_data, data_len, core_obj, io.simple_completion)
+io2 = core.new_io()
+data2 = Data(20)
+io2.configure(3, 11, IoDir.READ, 0, 0)
+io2.set_data(data2)
+print(data2)
+io2.submit()
+print(data2)
 
-write_data_ptr = cast(write_data.data, c_char_p)
-print("Data written: ", write_data_ptr.value)
+io2.del_object()
 
-read_data = io.Data()
-read_buff_ptr = cast(read_data.data, c_char_p)
-print("Data before read: ", read_buff_ptr.value)
+d1.dump_contents(stop_after_zeros=20000)
+s = cache.get_stats()
+pprint.pprint(s)
 
-# Actual read
-io.read(io_offset, read_data, data_len, core_obj, io.simple_completion)
-print("Data after read: ", read_buff_ptr.value)
-
-# print ("cache storage: ")
-# dobj.print_storage_buff(dobj.cache_storage)
-
-# print ("core storage: ")
-# dobj.print_storage_buff(dobj.core_storage)
-
-print ("Clean exit from python OCF-test-adapter framework!")
-lib.ocf_ctx_exit(context.ctx)
+print_structure(s["usage"])

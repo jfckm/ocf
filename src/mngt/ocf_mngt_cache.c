@@ -1402,8 +1402,8 @@ static int _ocf_mngt_cache_validate_cfg(struct ocf_mngt_cache_config *cfg)
 		return -OCF_ERR_INVAL;
 	}
 
-	if (!ocf_cache_line_size_is_valid(cfg->cache_line_size))
-		return -OCF_ERR_INVALID_CACHE_LINE_SIZE;
+	if (!ocf_cache_line_size_is_valid(cfg->cache_line_size)) {
+		return -OCF_ERR_INVALID_CACHE_LINE_SIZE;}
 
 	if (!cfg->io_queues)
 		return -OCF_ERR_INVAL;

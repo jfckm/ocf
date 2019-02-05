@@ -113,68 +113,51 @@ int ocf_ctx_data_obj_create(ocf_ctx_t ctx, ocf_data_obj_t *obj,
 /*
  *
  */
-int ocf_ctx_set_logger(ocf_ctx_t ctx, const struct ocf_logger *logger)
-{
-	int ret = 0;
-
-	OCF_CHECK_NULL(ctx);
-	OCF_CHECK_NULL(logger);
-
-	env_mutex_lock(&ctx->lock);
-
-	if (ctx->logger) {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	if (logger->open) {
-		ret = logger->open(logger);
-		if (ret)
-			goto out;
-	}
-
-	ctx->logger = logger;
-
-out:
-	env_mutex_unlock(&ctx->lock);
-	return ret;
-}
-
-/*
- *
- */
-int ocf_ctx_init(ocf_ctx_t *ctx, const struct ocf_ctx_ops *ops)
+int ocf_ctx_init(ocf_ctx_t *ctx, const struct ocf_ctx_config *cfg)
 {
 	ocf_ctx_t ocf_ctx;
+	int ret;
 
 	OCF_CHECK_NULL(ctx);
-	OCF_CHECK_NULL(ops);
+	OCF_CHECK_NULL(cfg);
 
 	ocf_ctx = env_zalloc(sizeof(*ocf_ctx), ENV_MEM_NORMAL);
 	if (!ocf_ctx)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&ocf_ctx->caches);
-	if (env_mutex_init(&ocf_ctx->lock)) {
-		env_free(ocf_ctx);
-		return -ENOMEM;
-	}
-	ocf_ctx->ctx_ops = ops;
+	ret = env_mutex_init(&ocf_ctx->lock);
+	if (ret)
+		goto err_ctx;
 
-	if (ocf_utils_init(ocf_ctx)) {
-		env_free(ocf_ctx);
-		return -ENOMEM;
-	}
+	ocf_ctx->ops = &cfg->ops;
+	ocf_ctx->cfg = cfg;
 
-	if (ocf_core_data_obj_type_init(ocf_ctx)) {
-		ocf_utils_deinit(ocf_ctx);
-		env_free(ocf_ctx);
-		return -EINVAL;
-	}
+	ocf_logger_init(&ocf_ctx->logger, &cfg->ops.logger, cfg->logger_priv);
+
+	ret = ocf_logger_open(&ocf_ctx->logger);
+	if (ret)
+		goto err_ctx;
+
+	ret = ocf_utils_init(ocf_ctx);
+	if (ret)
+		goto err_logger;
+
+	ret = ocf_core_data_obj_type_init(ocf_ctx);
+	if (ret)
+		goto err_utils;
 
 	*ctx = ocf_ctx;
 
 	return 0;
+
+err_utils:
+	ocf_utils_deinit(ocf_ctx);
+err_logger:
+	ocf_logger_close(&ocf_ctx->logger);
+err_ctx:
+	env_free(ocf_ctx);
+	return ret;
 }
 
 /*
@@ -197,8 +180,7 @@ int ocf_ctx_exit(ocf_ctx_t ctx)
 	ocf_core_data_obj_type_deinit(ctx);
 
 	ocf_utils_deinit(ctx);
-	if (ctx->logger && ctx->logger->close)
-		ctx->logger->close(ctx->logger);
+	ocf_logger_close(&ctx->logger);
 	env_free(ctx);
 
 	return 0;

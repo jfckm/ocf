@@ -9,6 +9,7 @@
 #include "engine/cache_engine.h"
 #include "utils/utils_part.h"
 #include "utils/utils_cache_line.h"
+#include "utils/utils_core.h"
 
 #ifdef OCF_DEBUG_STATS
 static void ocf_stats_debug_init(struct ocf_counters_debug *stats)
@@ -55,10 +56,25 @@ static void ocf_stats_error_init(struct ocf_counters_error *stats)
 	env_atomic_set(&stats->write, 0);
 }
 
-void ocf_stats_init(ocf_core_t core)
+
+/********************************************************************
+ * Function that resets stats, debug and breakdown counters.
+ * If reset is set the following stats won't be reset:
+ * - cache_occupancy
+ * - queue_length
+ * - debug_counters_read_reqs_issued_seq_hits
+ * - debug_counters_read_reqs_issued_not_seq_hits
+ * - debug_counters_read_reqs_issued_read_miss_schedule
+ * - debug_counters_write_reqs_thread
+ * - debug_counters_write_reqs_issued_only_hdd
+ * - debug_counters_write_reqs_issued_both_devs
+ *********************************************************************/
+void ocf_core_stats_initialize(ocf_core_t core)
 {
-	int i;
 	struct ocf_counters_core *exp_obj_stats;
+	int i;
+
+	OCF_CHECK_NULL(core);
 
 	exp_obj_stats = core->counters;
 
@@ -76,47 +92,16 @@ void ocf_stats_init(ocf_core_t core)
 #endif
 }
 
-/********************************************************************
- * Function that resets stats, debug and breakdown counters.
- * If reset is set the following stats won't be reset:
- * - cache_occupancy
- * - queue_length
- * - debug_counters_read_reqs_issued_seq_hits
- * - debug_counters_read_reqs_issued_not_seq_hits
- * - debug_counters_read_reqs_issued_read_miss_schedule
- * - debug_counters_write_reqs_thread
- * - debug_counters_write_reqs_issued_only_hdd
- * - debug_counters_write_reqs_issued_both_devs
- *********************************************************************/
-int ocf_stats_initialize(ocf_cache_t cache, ocf_core_id_t core_id)
+void ocf_core_stats_initialize_all(ocf_cache_t cache)
 {
-	ocf_core_t core;
 	ocf_core_id_t id;
-	int result;
-
-	result = ocf_mngt_cache_lock(cache);
-	if (result)
-		return result;
-
-	if (core_id != OCF_CORE_ID_INVALID) {
-		result = ocf_core_get(cache, core_id, &core);
-		if (!result)
-			ocf_stats_init(core);
-
-		ocf_mngt_cache_unlock(cache);
-		return result;
-	}
 
 	for (id = 0; id < OCF_CORE_MAX; id++) {
 		if (!env_bit_test(id, cache->conf_meta->valid_object_bitmap))
 			continue;
 
-		ocf_stats_init(&cache->core[id]);
+		ocf_core_stats_initialize(&cache->core[id]);
 	}
-
-	ocf_mngt_cache_unlock(cache);
-
-	return 0;
 }
 
 static void copy_req_stats(struct ocf_stats_req *dest,
@@ -176,49 +161,30 @@ static void copy_debug_stats(struct ocf_stats_core_debug *dest,
 }
 #endif
 
-int ocf_io_class_get_stats(ocf_core_t core, uint32_t io_class,
+int ocf_core_io_class_get_stats(ocf_core_t core, ocf_part_id_t part_id,
 		struct ocf_stats_io_class *stats)
 {
-	int result;
-	uint32_t part_id;
+	ocf_cache_t cache;
 	uint32_t i;
 	uint32_t cache_occupancy_total = 0;
 	struct ocf_counters_part *part_stat;
 	ocf_core_id_t core_id;
-	ocf_cache_t cache;
 
 	OCF_CHECK_NULL(core);
+	OCF_CHECK_NULL(stats);
+
+	if (part_id < OCF_IO_CLASS_ID_MIN || part_id > OCF_IO_CLASS_ID_MAX)
+		return -OCF_ERR_INVAL;
 
 	core_id = ocf_core_get_id(core);
 	cache = ocf_core_get_cache(core);
 
-	if (!stats)
-		return -OCF_ERR_INVAL;
+	if (!ocf_part_is_valid(&cache->user_parts[part_id]))
+		return -OCF_ERR_IO_CLASS_NOT_EXIST;
 
-	result = ocf_mngt_cache_read_lock(cache);
-	if (result)
-		return result;
-
-	if (io_class >= OCF_IO_CLASS_MAX) {
-		result = -OCF_ERR_INVAL;
-		goto unlock;
-	}
-
-	part_id = io_class;
-
-	if (!ocf_part_is_valid(&cache->user_parts[part_id])) {
-		/* Partition does not exist */
-		result = -OCF_ERR_IO_CLASS_NOT_EXIST;
-		goto unlock;
-	}
-
-	for (i = 0; i != OCF_CORE_MAX; ++i) {
-		if (!env_bit_test(i, cache->conf_meta->
-				valid_object_bitmap)) {
-			continue;
-		}
-		cache_occupancy_total += env_atomic_read(&cache->
-				core_runtime_meta[i].cached_clines);
+	for_each_core(cache, i) {
+		cache_occupancy_total += env_atomic_read(
+				&cache->core_runtime_meta[i].cached_clines);
 	}
 
 	part_stat = &core->counters->part_counters[part_id];
@@ -238,9 +204,7 @@ int ocf_io_class_get_stats(ocf_core_t core, uint32_t io_class,
 
 	copy_block_stats(&stats->blocks, &part_stat->blocks);
 
-unlock:
-	ocf_mngt_cache_read_unlock(cache);
-	return result;
+	return 0;
 }
 
 static uint32_t _calc_dirty_for(uint64_t dirty_since)
@@ -252,7 +216,6 @@ static uint32_t _calc_dirty_for(uint64_t dirty_since)
 
 int ocf_core_get_stats(ocf_core_t core, struct ocf_stats_core *stats)
 {
-	int result;
 	uint32_t i;
 	ocf_core_id_t core_id;
 	ocf_cache_t cache;
@@ -266,10 +229,6 @@ int ocf_core_get_stats(ocf_core_t core, struct ocf_stats_core *stats)
 
 	if (!stats)
 		return -OCF_ERR_INVAL;
-
-	result = ocf_mngt_cache_read_lock(cache);
-	if (result)
-		return result;
 
 	core_stats = core->counters;
 
@@ -320,8 +279,6 @@ int ocf_core_get_stats(ocf_core_t core, struct ocf_stats_core *stats)
 
 	stats->dirty_for = _calc_dirty_for(
 		env_atomic64_read(&cache->core_runtime_meta[core_id].dirty_since));
-
-	ocf_mngt_cache_read_unlock(cache);
 
 	return 0;
 }

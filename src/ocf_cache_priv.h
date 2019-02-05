@@ -17,9 +17,23 @@
 #include "ocf_stats_priv.h"
 #include "cleaning/cleaning.h"
 #include "ocf_logger_priv.h"
+#include "ocf/ocf_trace.h"
 
 #define DIRTY_FLUSHED 1
 #define DIRTY_NOT_FLUSHED 0
+
+/**
+ * @brief Structure used for aggregating trace-related ocf_cache fields
+ */
+struct ocf_trace {
+	/* Placeholder for push_event callback */
+	ocf_trace_callback_t trace_callback;
+
+	/* Telemetry context */
+	void *trace_ctx;
+
+	env_atomic64 trace_seq_ref;
+};
 
 struct ocf_metadata_uuid {
 	uint32_t size;
@@ -180,6 +194,8 @@ struct ocf_cache {
 	struct ocf_core_meta_runtime *core_runtime_meta;
 
 	env_atomic flush_in_progress;
+
+	/* Prevent dirty requests. May be incremented recursively */
 	env_atomic flush_started;
 
 	/* 1 if cache device attached, 0 otherwise */
@@ -208,6 +224,8 @@ struct ocf_cache {
 	bool use_submit_io_fast;
 
 	void *cleaning_policy_context;
+
+	struct ocf_trace trace;
 };
 
 #define ocf_cache_log_prefix(cache, lvl, prefix, fmt, ...) \

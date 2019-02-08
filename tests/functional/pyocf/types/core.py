@@ -100,6 +100,12 @@ class Core:
         io = OcfLib.getInstance().ocf_core_new_io_wrapper(self.handle)
         return Io.from_pointer(io)
 
+    def new_core_io(self):
+        lib = OcfLib.getInstance()
+        core = lib.ocf_core_get_data_object(self.handle)
+        io = lib.ocf_dobj_new_io(core)
+        return Io.from_pointer(io)
+
     def get_stats(self):
         core_stats = CoreStats()
         usage = UsageStats()
@@ -130,3 +136,8 @@ class Core:
             "blocks": struct_to_dict(blocks),
             "errors": struct_to_dict(errors),
         }
+
+lib = OcfLib.getInstance()
+lib.ocf_core_get_data_object.restype = c_void_p
+lib.ocf_dobj_new_io.argtypes = [c_void_p]
+lib.ocf_dobj_new_io.restype = c_void_p

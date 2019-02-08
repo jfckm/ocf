@@ -8,7 +8,7 @@ from ctypes import *
 from .io import Io, IoOps, IoDir
 from .shared import OcfError
 from ..ocf import OcfLib
-from ..utils import print_buffer, Size
+from ..utils import print_buffer, Size as S
 from .data import Data
 
 
@@ -115,7 +115,10 @@ class DataObject(Structure):
     @staticmethod
     @DataObjOps.SUBMIT_FLUSH
     def _submit_flush(flush):
-        pass
+        io_structure = cast(io, POINTER(Io))
+        dobj = DataObject.get_instance(io_structure.contents._obj)
+
+        dobj.submit_flush(io_structure)
 
     @staticmethod
     @DataObjOps.SUBMIT_METADATA
@@ -125,7 +128,10 @@ class DataObject(Structure):
     @staticmethod
     @DataObjOps.SUBMIT_DISCARD
     def _submit_discard(discard):
-        pass
+        io_structure = cast(io, POINTER(Io))
+        dobj = DataObject.get_instance(io_structure.contents._obj)
+
+        dobj.submit_discard(io_structure)
 
     @staticmethod
     @DataObjOps.SUBMIT_WRITE_ZEROES
@@ -160,7 +166,7 @@ class DataObject(Structure):
     @staticmethod
     @DataObjOps.GET_MAX_IO_SIZE
     def _get_max_io_size(obj):
-        return 4096
+        return S.from_KiB(128)
 
     @staticmethod
     @DataObjOps.GET_LENGTH
@@ -172,7 +178,7 @@ class DataObject(Structure):
     def _io_set_data(io, data, offset):
         io_priv = cast(OcfLib.getInstance().ocf_io_get_priv(io), POINTER(DataObjIoPriv))
         data = Data.get_instance(data)
-        data.offset = offset
+        data.position = offset
         io_priv.contents._data = cast(data, c_void_p)
         return 0
 
@@ -190,6 +196,12 @@ class DataObject(Structure):
 
     def get_length(self):
         return self.size
+
+    def submit_flush(self, flush):
+        flush.contents._end(io, 0)
+
+    def submit_discard(self, discard):
+        discard.contents._end(io, 0)
 
     def submit_io(self, io):
         try:

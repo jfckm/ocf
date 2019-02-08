@@ -37,14 +37,9 @@ core = Core.using_device(core1_device)
 core2 = Core.using_device(core2_device)
 cache.add_core(core)
 
-io1 = core.new_io()
+io1 = core.new_core_io()
 data1 = Data.from_string("This is MY data")
 io1.configure(0, data1.size, IoDir.WRITE, 0, 0)
-io1.set_data(data1)
-io1.submit()
-
-io1 = core.new_io()
-io1.configure(8, data1.size, IoDir.WRITE, 0, 0)
 io1.set_data(data1)
 io1.submit()
 
@@ -55,11 +50,6 @@ io2.set_data(data2)
 print(data2)
 io2.submit()
 print(data2)
-cache.stop()
-
-cache_device.dump_contents(offset=int(S.from_KiB(2048)), size=int(S.from_KiB(16384)))
-cache = Cache.load_from_device(cache_device)
-
 s = cache.get_stats()
 pprint.pprint(s)
 

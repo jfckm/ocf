@@ -5,8 +5,8 @@
  */
 
 #include "ocf/ocf_io.h"
-#include "ocf/ocf_data_obj.h"
+#include "ocf/ocf_volume.h"
 
-const char *ocf_uuid_to_str_wrapper(const struct ocf_data_obj_uuid *uuid) {
+const char *ocf_uuid_to_str_wrapper(const struct ocf_volume_uuid *uuid) {
 	return ocf_uuid_to_str(uuid);
 }

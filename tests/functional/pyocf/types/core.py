@@ -7,7 +7,7 @@ from ctypes import *
 
 from ..ocf import OcfLib
 from .shared import Uuid
-from .data_object import DataObject
+from .volume import Volume
 from .data import Data
 from .io import Io, IoDir
 from .stats.shared import *
@@ -22,7 +22,7 @@ class UserMetadata(Structure):
 class CoreConfig(Structure):
     _fields_ = [
         ("_uuid", Uuid),
-        ("_data_obj_type", c_uint8),
+        ("_volume_type", c_uint8),
         ("_core_id", c_uint16),
         ("_name", c_char_p),
         ("_cache_id", c_uint16),
@@ -43,7 +43,7 @@ class Core:
     def __init__(
         self,
         *,
-        device: DataObject,
+        device: Volume,
         core_id: int,
         name: str,
         try_add: bool,
@@ -63,7 +63,7 @@ class Core:
                 _size=len(self.device_name) + 1,
             ),
             _core_id=self.core_id,
-            _data_obj_type=self.device.type_id,
+            _volume_type=self.device.type_id,
             _try_add=try_add,
             _seq_cutoff_threshold=seq_cutoff_threshold,
             _user_metadata=UserMetadata(_data=None, _size=0),
@@ -102,8 +102,8 @@ class Core:
 
     def new_core_io(self):
         lib = OcfLib.getInstance()
-        core = lib.ocf_core_get_data_object(self.handle)
-        io = lib.ocf_dobj_new_io(core)
+        core = lib.ocf_core_get_volume(self.handle)
+        io = lib.ocf_volume_new_io(core)
         return Io.from_pointer(io)
 
     def get_stats(self):
@@ -137,7 +137,8 @@ class Core:
             "errors": struct_to_dict(errors),
         }
 
+
 lib = OcfLib.getInstance()
-lib.ocf_core_get_data_object.restype = c_void_p
-lib.ocf_dobj_new_io.argtypes = [c_void_p]
-lib.ocf_dobj_new_io.restype = c_void_p
+lib.ocf_core_get_volume.restype = c_void_p
+lib.ocf_volume_new_io.argtypes = [c_void_p]
+lib.ocf_volume_new_io.restype = c_void_p

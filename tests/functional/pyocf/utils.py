@@ -47,7 +47,7 @@ def print_buffer(buf, length, offset=0, width=16, stop_after_zeros=0):
     if whole_buffer_empty:
         print("<whole buffer empty>")
     elif zero_lines:
-        print("<{} zero bytes until end>".format(zero_lines * width))
+        print("<zero until end>".format(zero_lines * width))
 
 
 class Time:

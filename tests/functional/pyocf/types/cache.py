@@ -37,7 +37,7 @@ class CacheConfig(Structure):
 class CacheDeviceConfig(Structure):
     _fields_ = [
         ("_uuid", Uuid),
-        ("_data_obj_type", c_uint8),
+        ("_volume_type", c_uint8),
         ("_cache_line_size", c_uint64),
         ("_force", c_bool),
         ("_min_free_ram", c_uint64),
@@ -142,7 +142,7 @@ class Cache:
                 ),
                 _size=len(self.device_name) + 1,
             ),
-            _data_obj_type=device.type_id,
+            _volume_type=device.type_id,
             _cache_line_size=cache_line_size
             if cache_line_size
             else self.cache_line_size,
@@ -276,7 +276,7 @@ class Cache:
         return {
             "conf": {
                 "attached": cache_info.attached,
-                "data_obj_type": self.owner.dobj_types[cache_info.data_obj_type],
+                "volume_type": self.owner.volume_types[cache_info.volume_type],
                 "size": CacheLines(cache_info.size, line_size),
                 "inactive": {
                     "occupancy": CacheLines(cache_info.inactive.occupancy, line_size),

@@ -17,7 +17,7 @@ class _FallbackPt(Structure):
 class CacheInfo(Structure):
     _fields_ = [
         ("attached", c_bool),
-        ("data_obj_type", c_uint8),
+        ("volume_type", c_uint8),
         ("size", c_uint32),
         ("inactive", _Inactive),
         ("occupancy", c_uint32),

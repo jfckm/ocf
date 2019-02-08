@@ -10,7 +10,7 @@ import pprint
 from pyocf.ocf import OcfLib
 from pyocf import defaults
 from pyocf.types.data import Data
-from pyocf.types.data_object import DataObject, ErrorDevice
+from pyocf.types.volume import Volume, ErrorDevice
 from pyocf.types.logger import LogLevel
 from pyocf.types.cache import Cache
 from pyocf.types.core import Core
@@ -22,14 +22,14 @@ from pyocf.utils import Size as S, print_structure
 lib = OcfLib.getInstance()
 
 c = defaults.get_default_ctx(defaults.DefaultLogger(LogLevel.DEBUG))
-c.register_data_object_type(DataObject)
-c.register_data_object_type(ErrorDevice)
+c.register_volume_type(Volume)
+c.register_volume_type(ErrorDevice)
 
-cache_device = DataObject(200 * 1024 * 1024, "cache_device")
+cache_device = Volume(200 * 1024 * 1024, "cache_device")
 # cache_device = ErrorDevice(200 * 1024 * 1024, set([0]),"cache_device")
 # core1_device = ErrorDevice(300 * 1024 * 1024, set([0, 5]), "core1")
-core1_device = DataObject(300 * 1024 * 1024, "core1")
-core2_device = DataObject(300 * 1024 * 1024, "core2")
+core1_device = Volume(300 * 1024 * 1024, "core1")
+core2_device = Volume(300 * 1024 * 1024, "core2")
 
 
 cache = Cache.start_on_device(cache_device)
@@ -47,9 +47,9 @@ io2 = core.new_io()
 data2 = Data(20)
 io2.configure(3, 11, IoDir.READ, 0, 0)
 io2.set_data(data2)
-print(data2)
+data2.dump()
 io2.submit()
-print(data2)
+data2.dump()
 s = cache.get_stats()
 pprint.pprint(s)
 

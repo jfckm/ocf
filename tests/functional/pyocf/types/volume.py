@@ -12,11 +12,11 @@ from ..utils import print_buffer, Size as S
 from .data import Data
 
 
-class DataObjCaps(Structure):
+class VolumeCaps(Structure):
     _fields_ = [("_atomic_writes", c_uint32, 1)]
 
 
-class DataObjOps(Structure):
+class VolumeOps(Structure):
     SUBMIT_IO = CFUNCTYPE(None, POINTER(Io))
     SUBMIT_FLUSH = CFUNCTYPE(None, c_void_p)
     SUBMIT_METADATA = CFUNCTYPE(None, c_void_p)
@@ -40,22 +40,22 @@ class DataObjOps(Structure):
     ]
 
 
-class DataObjProperties(Structure):
+class VolumeProperties(Structure):
     _fields_ = [
         ("_name", c_char_p),
         ("_io_priv_size", c_uint32),
         ("_dobj_priv_size", c_uint32),
-        ("_caps", DataObjCaps),
-        ("_ops", DataObjOps),
+        ("_caps", VolumeCaps),
+        ("_ops", VolumeOps),
         ("_io_ops", IoOps),
     ]
 
 
-class DataObjIoPriv(Structure):
+class VolumeIoPriv(Structure):
     _fields_ = [("_data", c_void_p)]
 
 
-class DataObject(Structure):
+class Volume(Structure):
     _fields_ = [("_storage", c_void_p)]
     _instances_ = {}
     _uuid_ = {}
@@ -64,7 +64,7 @@ class DataObject(Structure):
         self.size = size
         if uuid:
             if uuid in type(self)._uuid_:
-                raise Exception("Data object with uuid {} already created".format(uuid))
+                raise Exception("Volume with uuid {} already created".format(uuid))
             self.uuid = uuid
         else:
             self.uuid = str(id(self))
@@ -77,12 +77,12 @@ class DataObject(Structure):
 
     @classmethod
     def get_props(cls):
-        return DataObjProperties(
+        return VolumeProperties(
             _name=str(cls.__name__).encode("ascii"),
-            _io_priv_size=sizeof(DataObjIoPriv),
+            _io_priv_size=sizeof(VolumeIoPriv),
             _dobj_priv_size=8,
-            _caps=DataObjCaps(_atomic_writes=0),
-            _ops=DataObjOps(
+            _caps=VolumeCaps(_atomic_writes=0),
+            _ops=VolumeOps(
                 _submit_io=cls._submit_io,
                 _submit_flush=cls._submit_flush,
                 _submit_metadata=cls._submit_metadata,
@@ -105,52 +105,52 @@ class DataObject(Structure):
         return cls._uuid_[uuid]
 
     @staticmethod
-    @DataObjOps.SUBMIT_IO
+    @VolumeOps.SUBMIT_IO
     def _submit_io(io):
         io_structure = cast(io, POINTER(Io))
-        dobj = DataObject.get_instance(io_structure.contents._obj)
+        dobj = Volume.get_instance(io_structure.contents._obj)
 
         dobj.submit_io(io_structure)
 
     @staticmethod
-    @DataObjOps.SUBMIT_FLUSH
+    @VolumeOps.SUBMIT_FLUSH
     def _submit_flush(flush):
         io_structure = cast(io, POINTER(Io))
-        dobj = DataObject.get_instance(io_structure.contents._obj)
+        dobj = Volume.get_instance(io_structure.contents._obj)
 
         dobj.submit_flush(io_structure)
 
     @staticmethod
-    @DataObjOps.SUBMIT_METADATA
+    @VolumeOps.SUBMIT_METADATA
     def _submit_metadata(meta):
         pass
 
     @staticmethod
-    @DataObjOps.SUBMIT_DISCARD
+    @VolumeOps.SUBMIT_DISCARD
     def _submit_discard(discard):
         io_structure = cast(io, POINTER(Io))
-        dobj = DataObject.get_instance(io_structure.contents._obj)
+        dobj = Volume.get_instance(io_structure.contents._obj)
 
         dobj.submit_discard(io_structure)
 
     @staticmethod
-    @DataObjOps.SUBMIT_WRITE_ZEROES
+    @VolumeOps.SUBMIT_WRITE_ZEROES
     def _submit_write_zeroes(write_zeroes):
         pass
 
     @staticmethod
     @CFUNCTYPE(c_int, c_void_p)
     def _open(obj):
-        uuid_ptr = cast(OcfLib.getInstance().ocf_dobj_get_uuid(obj), c_void_p)
+        uuid_ptr = cast(OcfLib.getInstance().ocf_volume_get_uuid(obj), c_void_p)
         uuid_str = cast(
             OcfLib.getInstance().ocf_uuid_to_str_wrapper(uuid_ptr), c_char_p
         )
         uuid = str(uuid_str.value, encoding="ascii")
         try:
-            dobj = DataObject.get_by_uuid(uuid)
+            dobj = Volume.get_by_uuid(uuid)
         except:
-            print("Tried to access unallocated data object {}".format(uuid))
-            print("{}".format(DataObject._uuid_))
+            print("Tried to access unallocated volume {}".format(uuid))
+            print("{}".format(Volume._uuid_))
             return -1
 
         type(dobj)._instances_[obj] = dobj
@@ -158,25 +158,25 @@ class DataObject(Structure):
         return dobj.open()
 
     @staticmethod
-    @DataObjOps.CLOSE
+    @VolumeOps.CLOSE
     def _close(obj):
-        DataObject.get_instance(obj).close()
-        del DataObject._instances_[obj]
+        Volume.get_instance(obj).close()
+        del Volume._instances_[obj]
 
     @staticmethod
-    @DataObjOps.GET_MAX_IO_SIZE
+    @VolumeOps.GET_MAX_IO_SIZE
     def _get_max_io_size(obj):
         return S.from_KiB(128)
 
     @staticmethod
-    @DataObjOps.GET_LENGTH
+    @VolumeOps.GET_LENGTH
     def _get_length(obj):
-        return DataObject.get_instance(obj).get_length()
+        return Volume.get_instance(obj).get_length()
 
     @staticmethod
     @IoOps.SET_DATA
     def _io_set_data(io, data, offset):
-        io_priv = cast(OcfLib.getInstance().ocf_io_get_priv(io), POINTER(DataObjIoPriv))
+        io_priv = cast(OcfLib.getInstance().ocf_io_get_priv(io), POINTER(VolumeIoPriv))
         data = Data.get_instance(data)
         data.position = offset
         io_priv.contents._data = cast(data, c_void_p)
@@ -185,7 +185,7 @@ class DataObject(Structure):
     @staticmethod
     @IoOps.GET_DATA
     def _io_get_data(io):
-        io_priv = cast(OcfLib.getInstance().ocf_io_get_priv(io), POINTER(DataObjIoPriv))
+        io_priv = cast(OcfLib.getInstance().ocf_io_get_priv(io), POINTER(VolumeIoPriv))
         return io_priv.contents._data
 
     def open(self):
@@ -213,10 +213,6 @@ class DataObject(Structure):
                 dst_ptr = cast(io.contents._ops.contents._get_data(io), c_void_p)
                 dst = Data.get_instance(dst_ptr.value)
                 src = self._storage + io.contents._addr
-            else:
-                raise OcfError(
-                    "Critical IO failure - wrong direction", io.contents._dir
-                )
 
             memmove(dst, src, io.contents._bytes)
 
@@ -230,10 +226,13 @@ class DataObject(Structure):
         print_buffer(self._storage + offset, size, stop_after_zeros=stop_after_zeros)
 
 
-class ErrorDevice(DataObject):
-    def __init__(self, size, error_sectors: set, uuid=None):
-        self.error_sectors = error_sectors
+class ErrorDevice(Volume):
+    def __init__(self, size, error_sectors: set = None, uuid=None):
         super().__init__(size, uuid)
+        self.error_sectors = error_sectors or set()
+
+    def set_mapping(self, error_sectors: set):
+        self.error_sectors = error_sectors
 
     def submit_io(self, io):
         if io.contents._addr in self.error_sectors:

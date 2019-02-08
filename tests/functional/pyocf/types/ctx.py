@@ -35,8 +35,8 @@ class OcfCtx:
         self.cleaner = cleaner
         self.ctx_handle = c_void_p()
         self.lib = lib
-        self.dobj_types_count = 1
-        self.dobj_types = {}
+        self.volume_types_count = 1
+        self.volume_types = {}
 
         self.cfg = OcfCtxCfg(
             name=name,
@@ -54,20 +54,20 @@ class OcfCtx:
         if result != 0:
             raise OcfError("Context initialization failed", result)
 
-    def register_data_object_type(self, dobj_type):
-        self.dobj_types[self.dobj_types_count] = dobj_type.get_props()
-        dobj_type.type_id = self.dobj_types_count
-        dobj_type.owner = self
+    def register_volume_type(self, volume_type):
+        self.volume_types[self.volume_types_count] = volume_type.get_props()
+        volume_type.type_id = self.volume_types_count
+        volume_type.owner = self
 
-        result = self.lib.ocf_ctx_register_data_obj_type(
+        result = self.lib.ocf_ctx_register_volume_type(
             self.ctx_handle,
-            self.dobj_types_count,
-            byref(self.dobj_types[self.dobj_types_count]),
+            self.volume_types_count,
+            byref(self.volume_types[self.volume_types_count]),
         )
         if result != 0:
             raise OcfError("Data object registration failed", result)
 
-        self.dobj_types_count += 1
+        self.volume_types_count += 1
 
     def __del__(self):
         self.lib.ocf_ctx_exit(self.ctx_handle)

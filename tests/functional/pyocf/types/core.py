@@ -10,6 +10,9 @@ from .shared import Uuid
 from .data_object import DataObject
 from .data import Data
 from .io import Io, IoDir
+from .stats.shared import *
+from .stats.core import *
+from ..utils import Size, Time, struct_to_dict
 
 
 class UserMetadata(Structure):
@@ -91,5 +94,39 @@ class Core:
         return self.handle
 
     def new_io(self):
+        if not self.cache:
+            raise Exception("Core isn't attached to any cache")
+
         io = OcfLib.getInstance().ocf_core_new_io_wrapper(self.handle)
         return Io.from_pointer(io)
+
+    def get_stats(self):
+        core_stats = CoreStats()
+        usage = UsageStats()
+        req = RequestsStats()
+        blocks = BlocksStats()
+        errors = ErrorsStats()
+
+        self.cache.get_and_lock(True)
+
+        status = self.cache.owner.lib.ocf_stats_collect_core(
+            self.handle, byref(usage), byref(req), byref(blocks), byref(errors)
+        )
+        if status:
+            self.cache.put_and_unlock(True)
+            raise OcfError("Failed getting cache info", status)
+
+        status = self.cache.owner.lib.ocf_core_get_stats(self.handle, byref(core_stats))
+        if status:
+            self.cache.put_and_unlock(True)
+            raise OcfError("Failed getting cache info", status)
+
+        self.cache.put_and_unlock(True)
+        return {
+            "size": Size(core_stats.core_size_bytes),
+            "dirty_for": Time.from_s(core_stats.dirty_for),
+            "usage": struct_to_dict(usage),
+            "req": struct_to_dict(req),
+            "blocks": struct_to_dict(blocks),
+            "errors": struct_to_dict(errors),
+        }

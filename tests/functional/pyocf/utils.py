@@ -221,3 +221,15 @@ def print_structure(struct, indent=0):
             continue
 
         print("{}{: <20} : {}".format("   " * indent, field, value))
+
+
+def struct_to_dict(struct):
+    d = {}
+    for field, field_type in struct._fields_:
+        value = getattr(struct, field)
+        if hasattr(value, "_fields_"):
+            d[field] = struct_to_dict(value)
+            continue
+        d[field] = value
+
+    return d

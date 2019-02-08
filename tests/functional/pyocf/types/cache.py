@@ -7,9 +7,10 @@ from ctypes import *
 from enum import IntEnum
 
 from .shared import Uuid, OcfError, CacheLineSize, CacheLines
-from ..utils import Size, Time
+from ..utils import Size, Time, struct_to_dict
 from .core import Core
 from .stats.cache import *
+from .stats.shared import *
 
 
 class Backfill(Structure):
@@ -50,11 +51,13 @@ class CacheMode(IntEnum):
     WB = (1,)
     WA = (2,)
     PT = (3,)
-    WI = 4
+    WI = (4,)
+    DEFAULT = WT
 
 
 class EvictionPolicy(IntEnum):
     LRU = 0
+    DEFAULT = LRU
 
 
 class CleaningPolicy(IntEnum):
@@ -66,12 +69,13 @@ class CleaningPolicy(IntEnum):
 
 class MetadataLayout(IntEnum):
     STRIPING = (0,)
-    SEQUENTIAL = 1
+    SEQUENTIAL = (1,)
+    DEFAULT = STRIPING
 
 
 class Cache:
     DEFAULT_ID = 0
-    DEFAULT_MODE = CacheMode.WI
+    DEFAULT_MODE = CacheMode.WT
     DEFAULT_EVICTION_POLICY = EvictionPolicy.LRU
     DEFAULT_CACHE_LINE_SIZE = CacheLineSize.DEFAULT
     DEFAULT_METADATA_LAYOUT = MetadataLayout.SEQUENTIAL
@@ -84,19 +88,19 @@ class Cache:
     def __init__(
         self,
         *,
-        cache_id: int,
+        cache_id: int = DEFAULT_ID,
         name: str,
-        cache_mode: CacheMode,
-        eviction_policy: EvictionPolicy,
-        cache_line_size: int,
-        metadata_layout: MetadataLayout,
-        metadata_volatile: bool,
-        max_queue_size: int,
-        queue_unblock_size: int,
-        io_queues: int,
-        locked: bool,
-        pt_unaligned_io: bool,
-        use_submit_fast: bool,
+        cache_mode: CacheMode = CacheMode.DEFAULT,
+        eviction_policy: EvictionPolicy = EvictionPolicy.DEFAULT,
+        cache_line_size: CacheLineSize = CacheLineSize.DEFAULT,
+        metadata_layout: MetadataLayout = MetadataLayout.DEFAULT,
+        metadata_volatile: bool = False,
+        max_queue_size: int = DEFAULT_BACKFILL_QUEUE_SIZE,
+        queue_unblock_size: int = DEFAULT_BACKFILL_UNBLOCK,
+        io_queues: int = DEFAULT_IO_QUEUES,
+        locked: bool = True,
+        pt_unaligned_io: bool = DEFAULT_PT_UNALIGNED_IO,
+        use_submit_fast: bool = DEFAULT_USE_SUBMIT_FAST,
         owner
     ):
 
@@ -120,13 +124,14 @@ class Cache:
         )
         self.cache_handle = c_void_p()
 
+    def start_cache(self):
         status = self.owner.lib.ocf_mngt_cache_start(
             self.owner.ctx_handle, byref(self.cache_handle), byref(self.cfg)
         )
         if status != 0:
             raise OcfError("Creating cache instance failed", status)
 
-    def attach_device(
+    def configure_device(
         self, device, force=False, perform_test=False, cache_line_size=None
     ):
         self.device_name = device.uuid
@@ -147,14 +152,37 @@ class Cache:
             _discard_on_start=False,
         )
 
+    def attach_device(
+        self, device, force=False, perform_test=False, cache_line_size=None
+    ):
+        self.configure_device(device, force, perform_test, cache_line_size)
+
         status = device.owner.lib.ocf_mngt_cache_attach(
             self.cache_handle, byref(self.dev_cfg)
         )
         if status != 0:
             raise OcfError("Attaching cache device failed", status)
 
+    def load_cache(self, device):
+        self.configure_device(device)
+
+        status = device.owner.lib.ocf_mngt_cache_load(
+            self.owner.ctx_handle,
+            byref(self.cache_handle),
+            byref(self.cfg),
+            byref(self.dev_cfg),
+        )
+        if status != 0:
+            raise OcfError("Attaching cache device failed", status)
+
     @classmethod
-    def using_device(
+    def load_from_device(cls, device, name=""):
+        c = cls(name=name, owner=device.owner)
+        c.load_cache(device)
+        return c
+
+    @classmethod
+    def start_on_device(
         cls,
         device,
         name: str = "",
@@ -180,18 +208,46 @@ class Cache:
             owner=device.owner,
         )
 
+        c.start_cache()
         c.attach_device(device, force=True)
         return c
 
+    def get_and_lock(self, read=True):
+        status = self.owner.lib.ocf_mngt_cache_get_by_handle(self.cache_handle)
+        if status:
+            raise OcfError("Couldn't get cache instance", status)
+
+        if read:
+            status = self.owner.lib.ocf_mngt_cache_read_lock(self.cache_handle)
+        else:
+            status = self.owner.lib.ocf_mngt_cache_lock(self.cache_handle)
+
+        if status:
+            self.owner.lib.ocf_mngt_cache_put(self.cache_handle)
+            raise OcfError("Couldn't lock cache instance", status)
+
+    def put_and_unlock(self, read=True):
+        if read:
+            self.owner.lib.ocf_mngt_cache_read_unlock(self.cache_handle)
+        else:
+            self.owner.lib.ocf_mngt_cache_unlock(self.cache_handle)
+
+        self.owner.lib.ocf_mngt_cache_put(self.cache_handle)
+
     def add_core(self, core: Core):
+        self.get_and_lock(False)
+
         status = self.owner.lib.ocf_mngt_cache_add_core(
             self.cache_handle, byref(core.get_handle()), byref(core.get_cfg())
         )
 
-        if status != 0:
+        if status:
+            self.put_and_unlock(False)
             raise OcfError("Failed adding core", status)
 
         core.cache = self
+
+        self.put_and_unlock(False)
 
     def get_stats(self):
         cache_info = CacheInfo()
@@ -200,16 +256,23 @@ class Cache:
         block = BlocksStats()
         errors = ErrorsStats()
 
+        self.get_and_lock(True)
+
         status = self.owner.lib.ocf_cache_get_info(self.cache_handle, byref(cache_info))
-        if status != 0:
+        if status:
+            self.put_and_unlock(True)
             raise OcfError("Failed getting cache info", status)
 
-        status = self.owner.lib.ocf_stats_collect_cache(self.cache_handle,
-                byref(usage), byref(req), byref(block), byref(errors))
-        if status != 0:
+        status = self.owner.lib.ocf_stats_collect_cache(
+            self.cache_handle, byref(usage), byref(req), byref(block), byref(errors)
+        )
+        if status:
+            self.put_and_unlock(True)
             raise OcfError("Failed getting stats", status)
 
         line_size = CacheLineSize(cache_info.cache_line_size)
+
+        self.put_and_unlock(True)
         return {
             "conf": {
                 "attached": cache_info.attached,
@@ -237,8 +300,17 @@ class Cache:
                 "metadata_footprint": Size(cache_info.metadata_footprint),
                 "metadata_end_offset": Size(cache_info.metadata_end_offset),
             },
-            "block" : block,
-            "req" : req,
-            "usage" : usage,
-            "errors" : errors
+            "block": struct_to_dict(block),
+            "req": struct_to_dict(req),
+            "usage": struct_to_dict(usage),
+            "errors": struct_to_dict(errors),
         }
+
+    def stop(self):
+        self.get_and_lock(False)
+
+        status = self.owner.lib.ocf_mngt_cache_stop(self.cache_handle)
+        if status:
+            raise OcfError("Failed getting stats", status)
+
+        self.put_and_unlock(False)

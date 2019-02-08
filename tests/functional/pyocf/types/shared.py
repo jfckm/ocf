@@ -16,7 +16,7 @@ class OcfError(BaseException):
         self.msg = msg
 
     def __str__(self):
-        return "Inner OCF error: {} ({})".format(self.msg, self.error_code)
+        return "{} ({})".format(self.msg, self.error_code)
 
 
 class SharedOcfObject(Structure):

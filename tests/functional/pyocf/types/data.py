@@ -23,7 +23,7 @@ class DataOps(Structure):
     READ = CFUNCTYPE(c_uint32, c_void_p, c_void_p, c_uint32)
     WRITE = CFUNCTYPE(c_uint32, c_void_p, c_void_p, c_uint32)
     ZERO = CFUNCTYPE(c_uint32, c_void_p, c_uint32)
-    SEEK = CFUNCTYPE(c_uint32, c_int, c_uint32)
+    SEEK = CFUNCTYPE(c_uint32, c_void_p, c_uint32, c_uint32)
     COPY = CFUNCTYPE(c_uint64, c_void_p, c_void_p, c_uint64, c_uint64, c_uint64)
     SECURE_ERASE = CFUNCTYPE(None, c_void_p)
 
@@ -178,9 +178,12 @@ class Data(SharedOcfObject):
         return to_zero
 
     def seek(self, seek, size):
-        if seek == DataSeek.BEGIN:
+        if seek == DataSeek.CURRENT:
             to_move = min(self.size - self.position, seek)
             self.position += to_move
+        else:
+            to_move = min(self.size, seek)
+            self.position = to_move
 
         return to_move
 

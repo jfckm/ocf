@@ -54,13 +54,7 @@ class Io(Structure):
         return cls._instances_[cast(ref, c_void_p).value]
 
     def del_object(self):
-        try:
-            del type(self)._instances_[cast(byref(self), c_void_p).value]
-        except:
-            pass
-
-    def __del__(self):
-        self.del_object()
+        del type(self)._instances_[cast(byref(self), c_void_p).value]
 
     @staticmethod
     @END
@@ -80,6 +74,7 @@ class Io(Structure):
     def end(self, err):
         if err:
             print("IO err {}".format(err))
+        self.del_object()
 
     def submit(self):
         return OcfLib.getInstance().ocf_core_submit_io_wrapper(byref(self))

@@ -8,7 +8,7 @@ from ctypes import *
 from .io import Io, IoOps, IoDir
 from .shared import OcfError
 from ..ocf import OcfLib
-from ..utils import print_buffer
+from ..utils import print_buffer, Size
 from .data import Data
 
 
@@ -70,6 +70,10 @@ class DataObject(Structure):
             self.uuid = str(id(self))
 
         type(self)._uuid_[self.uuid] = self
+
+        self.data = create_string_buffer(self.size)
+        self._storage = cast(self.data, c_void_p)
+        memset(self._storage, 0, self.size)
 
     @classmethod
     def get_props(cls):
@@ -179,10 +183,6 @@ class DataObject(Structure):
         return io_priv.contents._data
 
     def open(self):
-        self.data = create_string_buffer(self.size)
-        self._storage = cast(self.data, c_void_p)
-        memset(self._storage, 0, self.size)
-
         return 0
 
     def close(self):
@@ -210,10 +210,21 @@ class DataObject(Structure):
 
             io.contents._end(io, 0)
         except:
-            raise
             io.contents._end(io, -5)
 
     def dump_contents(self, stop_after_zeros=0, offset=0, size=0):
         if size == 0:
             size = self.size
         print_buffer(self._storage + offset, size, stop_after_zeros=stop_after_zeros)
+
+
+class ErrorDevice(DataObject):
+    def __init__(self, size, error_sectors: set, uuid=None):
+        self.error_sectors = error_sectors
+        super().__init__(size, uuid)
+
+    def submit_io(self, io):
+        if io.contents._addr in self.error_sectors:
+            io.contents._end(io, -5)
+        else:
+            super().submit_io(io)

@@ -87,6 +87,7 @@ class Io(Structure):
         )
 
     def set_data(self, data: Data):
+        self.data = data
         result = OcfLib.getInstance().ocf_io_set_data_wrapper(byref(self), data, 0)
 
 

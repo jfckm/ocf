@@ -5,11 +5,14 @@
 
 from ctypes import *
 from enum import IntEnum
-from .logger import LoggerOps
-from .data import DataOps
-from .queue import QueueOps
-from .cleaner import CleanerOps
-from .metadata_updater import MetadataUpdaterOps
+
+from .logger import LoggerOps, Logger
+from .data import DataOps, Data
+from .queue import QueueOps, Queue
+from .cleaner import CleanerOps, Cleaner
+from .metadata_updater import MetadataUpdaterOps, MetadataUpdater
+from .shared import OcfError
+from ..ocf import OcfLib
 
 
 class OcfCtxOps(Structure):
@@ -71,3 +74,15 @@ class OcfCtx:
 
     def __del__(self):
         self.lib.ocf_ctx_exit(self.ctx_handle)
+
+
+def get_default_ctx(logger):
+    return OcfCtx(
+        OcfLib.getInstance(),
+        b"PyOCF default ctx",
+        logger,
+        Data,
+        MetadataUpdater,
+        Queue,
+        Cleaner,
+    )

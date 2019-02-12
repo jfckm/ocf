@@ -12,7 +12,7 @@ WRAPDIR=$(ADAPTERDIR)/wrappers
 
 CC=gcc
 CFLAGS=-g -Wall -I$(INCDIR) -I$(SRCDIR)/ocf/env
-LDFLAGS=-pthread
+LDFLAGS=-pthread -lz
 
 SRC=$(shell find $(SRCDIR) $(WRAPDIR) -name \*.c)
 OBJS=$(patsubst %.c, %.o, $(SRC))

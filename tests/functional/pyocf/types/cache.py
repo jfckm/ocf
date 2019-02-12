@@ -5,6 +5,7 @@
 
 from ctypes import *
 from enum import IntEnum
+import logging
 
 from .shared import Uuid, OcfError, CacheLineSize, CacheLines
 from ..utils import Size, Time, struct_to_dict
@@ -89,7 +90,7 @@ class Cache:
         self,
         *,
         cache_id: int = DEFAULT_ID,
-        name: str,
+        name: str = "",
         cache_mode: CacheMode = CacheMode.DEFAULT,
         eviction_policy: EvictionPolicy = EvictionPolicy.DEFAULT,
         cache_line_size: CacheLineSize = CacheLineSize.DEFAULT,
@@ -123,6 +124,7 @@ class Cache:
             _use_submit_fast=use_submit_fast,
         )
         self.cache_handle = c_void_p()
+        self.cores = []
 
     def start_cache(self):
         status = self.owner.lib.ocf_mngt_cache_start(
@@ -182,31 +184,9 @@ class Cache:
         return c
 
     @classmethod
-    def start_on_device(
-        cls,
-        device,
-        name: str = "",
-        cache_id: int = DEFAULT_ID,
-        cache_mode: CacheMode = DEFAULT_MODE,
-        cache_line_size: int = DEFAULT_CACHE_LINE_SIZE,
-    ):
+    def start_on_device(cls, device, **kwargs):
 
-        c = cls(
-            cache_id=cache_id,
-            name=name,
-            cache_mode=cache_mode,
-            eviction_policy=cls.DEFAULT_EVICTION_POLICY,
-            cache_line_size=cache_line_size,
-            metadata_layout=cls.DEFAULT_METADATA_LAYOUT,
-            metadata_volatile=False,
-            max_queue_size=cls.DEFAULT_BACKFILL_QUEUE_SIZE,
-            queue_unblock_size=cls.DEFAULT_BACKFILL_UNBLOCK,
-            io_queues=cls.DEFAULT_IO_QUEUES,
-            locked=True,
-            pt_unaligned_io=cls.DEFAULT_PT_UNALIGNED_IO,
-            use_submit_fast=cls.DEFAULT_USE_SUBMIT_FAST,
-            owner=device.owner,
-        )
+        c = cls(locked=True, owner=device.owner, **kwargs)
 
         c.start_cache()
         c.attach_device(device, force=True)
@@ -246,6 +226,7 @@ class Cache:
             raise OcfError("Failed adding core", status)
 
         core.cache = self
+        self.cores += [core]
 
         self.put_and_unlock(False)
 
@@ -306,11 +287,15 @@ class Cache:
             "errors": struct_to_dict(errors),
         }
 
+    def reset_stats(self):
+        for core in self.cores:
+            self.owner.lib.ocf_core_stats_initialize(core.get_handle())
+
     def stop(self):
         self.get_and_lock(False)
 
         status = self.owner.lib.ocf_mngt_cache_stop(self.cache_handle)
         if status:
-            raise OcfError("Failed getting stats", status)
+            raise OcfError("Failed stopping cache", status)
 
         self.put_and_unlock(False)

@@ -5,6 +5,7 @@
 
 from ctypes import *
 from enum import IntEnum
+from hashlib import md5
 
 from .shared import SharedOcfObject
 from ..utils import print_buffer
@@ -51,7 +52,7 @@ class Data(SharedOcfObject):
     def __init__(self, byte_count: int):
         self.size = byte_count
         self.position = 0
-        self.buffer = create_string_buffer(self.size)
+        self.buffer = create_string_buffer(int(self.size))
         self.data = cast(self.buffer, c_void_p)
         memset(self.data, 0, self.size)
         type(self)._instances_[self.data] = self
@@ -195,3 +196,8 @@ class Data(SharedOcfObject):
 
     def dump(self):
         print_buffer(self.buffer, self.size)
+
+    def md5(self):
+        m = md5()
+        m.update(string_at(self.data, self.size))
+        return m.hexdigest()

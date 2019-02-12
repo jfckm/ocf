@@ -4,6 +4,7 @@
 #
 
 from ctypes import *
+from hashlib import md5
 
 from .io import Io, IoOps, IoDir
 from .shared import OcfError
@@ -60,7 +61,7 @@ class Volume(Structure):
     _instances_ = {}
     _uuid_ = {}
 
-    def __init__(self, size, uuid=None):
+    def __init__(self, size: S, uuid=None):
         self.size = size
         if uuid:
             if uuid in type(self)._uuid_:
@@ -71,9 +72,10 @@ class Volume(Structure):
 
         type(self)._uuid_[self.uuid] = self
 
-        self.data = create_string_buffer(self.size)
+        self.data = create_string_buffer(int(self.size))
         self._storage = cast(self.data, c_void_p)
         memset(self._storage, 0, self.size)
+        self.reset_stats()
 
     @classmethod
     def get_props(cls):
@@ -203,8 +205,15 @@ class Volume(Structure):
     def submit_discard(self, discard):
         discard.contents._end(io, 0)
 
+    def get_stats(self):
+        return self.stats
+
+    def reset_stats(self):
+        self.stats = {IoDir.WRITE: 0, IoDir.READ: 0}
+
     def submit_io(self, io):
         try:
+            self.stats[io.contents._dir] += 1
             if io.contents._dir == IoDir.WRITE:
                 src_ptr = cast(io.contents._ops.contents._get_data(io), c_void_p)
                 src = Data.get_instance(src_ptr.value)
@@ -225,6 +234,11 @@ class Volume(Structure):
             size = self.size
         print_buffer(self._storage + offset, size, stop_after_zeros=stop_after_zeros)
 
+    def md5(self):
+        m = md5()
+        m.update(string_at(self._storage, self.size))
+        return m.hexdigest()
+
 
 class ErrorDevice(Volume):
     def __init__(self, size, error_sectors: set = None, uuid=None):
@@ -237,5 +251,6 @@ class ErrorDevice(Volume):
     def submit_io(self, io):
         if io.contents._addr in self.error_sectors:
             io.contents._end(io, -5)
+            self.stats["errors"][io.contents._dir] += 1
         else:
             super().submit_io(io)

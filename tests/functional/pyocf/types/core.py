@@ -4,6 +4,7 @@
 #
 
 from ctypes import *
+import logging
 
 from ..ocf import OcfLib
 from .shared import Uuid
@@ -30,10 +31,6 @@ class CoreConfig(Structure):
         ("_seq_cutoff_threshold", c_uint32),
         ("_user_metadata", UserMetadata),
     ]
-
-
-class ExportedObject:
-    pass
 
 
 class Core:
@@ -136,6 +133,20 @@ class Core:
             "blocks": struct_to_dict(blocks),
             "errors": struct_to_dict(errors),
         }
+
+    def reset_stats(self):
+        self.cache.owner.lib.ocf_core_stats_initialize(self.handle)
+
+    def exp_obj_md5(self):
+        logging.getLogger("pyocf").warning(
+            "Reading whole exported object! This disturbs statistics values"
+        )
+        read_buffer = Data(self.device.size)
+        io = self.new_io()
+        io.configure(0, read_buffer.size, IoDir.READ, 0, 0)
+        io.set_data(read_buffer)
+        io.submit()
+        return read_buffer.md5()
 
 
 lib = OcfLib.getInstance()

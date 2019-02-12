@@ -5,8 +5,13 @@
 
 from ctypes import *
 from enum import IntEnum
+import logging
+from io import StringIO
 
 from ..ocf import OcfLib
+
+logger = logging.getLogger("pyocf")
+logger.setLevel(logging.DEBUG)
 
 
 class LogLevel(IntEnum):
@@ -18,6 +23,18 @@ class LogLevel(IntEnum):
     NOTICE = (5,)
     INFO = (6,)
     DEBUG = 7
+
+
+LevelMapping = {
+    LogLevel.EMERG: logging.CRITICAL,
+    LogLevel.ALERT: logging.CRITICAL,
+    LogLevel.CRIT: logging.CRITICAL,
+    LogLevel.ERR: logging.ERROR,
+    LogLevel.WARN: logging.WARNING,
+    LogLevel.NOTICE: logging.INFO,
+    LogLevel.INFO: logging.INFO,
+    LogLevel.DEBUG: logging.DEBUG,
+}
 
 
 class LoggerOps(Structure):
@@ -77,3 +94,58 @@ class Logger(Structure):
             return Logger.get_instance(ctx).close()
         else:
             return 0
+
+
+class DefaultLogger(Logger):
+    def __init__(self, level: LogLevel = LogLevel.WARN):
+        super().__init__()
+        self.level = level
+
+        ch = logging.StreamHandler()
+        fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        ch.setFormatter(fmt)
+        ch.setLevel(LevelMapping[level])
+        logger.addHandler(ch)
+
+    def log(self, lvl: int, msg: str):
+        logger.log(LevelMapping[lvl], msg)
+
+
+class FileLogger(Logger):
+    def __init__(self, f, console_level=None):
+        super().__init__()
+        fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+        fh = logging.FileHandler(f)
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(fmt)
+
+        logger.addHandler(fh)
+
+        if console_level:
+            sh = logging.StreamHandler()
+            sh.setLevel(LevelMapping[console_level])
+            sh.setFormatter(fmt)
+            logger.addHandler(sh)
+
+    def log(self, lvl, msg):
+        logger.log(LevelMapping[lvl], msg)
+
+
+class BufferLogger(Logger):
+    def __init__(self, level: LogLevel):
+        super().__init__()
+        self.level = level
+        self.buffer = StringIO()
+
+    def log(self, lvl, msg):
+        if lvl < self.level:
+            self.buffer.write(msg + "\n")
+
+    def get_lines(self):
+        return self.buffer.getvalue().split("\n")
+
+
+lib = OcfLib.getInstance()
+lib.ocf_logger_get_priv.restype = c_void_p
+lib.ocf_logger_get_priv.argtypes = [c_void_p]

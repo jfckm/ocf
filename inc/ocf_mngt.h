@@ -20,14 +20,14 @@
  */
 struct ocf_mngt_core_config {
 	/**
-	 * @brief OCF core data object UUID
+	 * @brief OCF core volume UUID
 	 */
-	struct ocf_data_obj_uuid uuid;
+	struct ocf_volume_uuid uuid;
 
 	/**
-	 * @brief OCF core data object type
+	 * @brief OCF core volume type
 	 */
-	uint8_t data_obj_type;
+	uint8_t volume_type;
 
 	/**
 	 * @brief OCF core ID number
@@ -39,11 +39,6 @@ struct ocf_mngt_core_config {
 	 *	to core name
 	 */
 	const char *name;
-
-	/**
-	 * @brief OCF core name size
-	 */
-	size_t name_size;
 
 	/**
 	 * @brief OCF cache ID number
@@ -216,11 +211,6 @@ struct ocf_mngt_cache_config {
 	const char *name;
 
 	/**
-	 * @brief Size of cache name
-	 */
-	size_t name_size;
-
-	/**
 	 * @brief Cache mode
 	 */
 	ocf_cache_mode_t cache_mode;
@@ -279,14 +269,14 @@ struct ocf_mngt_cache_config {
  */
 struct ocf_mngt_cache_device_config {
 	/**
-	 * @brief Cache data object UUID
+	 * @brief Cache volume UUID
 	 */
-	struct ocf_data_obj_uuid uuid;
+	struct ocf_volume_uuid uuid;
 
 	/**
-	 * @brief Cache data object type
+	 * @brief Cache volume type
 	 */
-	uint8_t data_obj_type;
+	uint8_t volume_type;
 
 	/**
 	 * @brief Cache line size
@@ -344,17 +334,6 @@ int ocf_mngt_cache_start(ocf_ctx_t ctx, ocf_cache_t *cache,
 int ocf_mngt_cache_stop(ocf_cache_t cache);
 
 /**
- * @brief Stop cache instance without acquiring cache lock - caller is
- *		required to hold cache write lock when calling this
- *
- * @param[in] cache Cache handle
- *
- * @retval 0 Cache successfully stopped
- * @retval Non-zero Error occurred during stopping cache
- */
-int ocf_mngt_cache_stop_nolock(ocf_cache_t cache);
-
-/**
  * @brief Attach caching device to cache instance
  *
  * @param[in] cache Cache handle
@@ -364,19 +343,6 @@ int ocf_mngt_cache_stop_nolock(ocf_cache_t cache);
  * @retval Non-zero Error occurred during attaching cache
  */
 int ocf_mngt_cache_attach(ocf_cache_t cache,
-		struct ocf_mngt_cache_device_config *device_cfg);
-
-/**
- * @brief Attach caching device to cache instance without acquiring cache lock
- *	- caller is required to hold cache write lock when calling this
- *
- * @param[in] cache Cache handle
- * @param[in] device_cfg Caching device configuration
- *
- * @retval 0 Cache cache successfully attached
- * @retval Non-zero Error occurred during attaching cache
- */
-int ocf_mngt_cache_attach_nolock(ocf_cache_t cache,
 		struct ocf_mngt_cache_device_config *device_cfg);
 
 /**
@@ -392,7 +358,8 @@ int ocf_mngt_cache_detach(ocf_cache_t cache);
 /**
  * @brief Load cache instance
  *
- * @param[in] cache Cache handle
+ * @param[in] ctx OCF context
+ * @param[out] cache Cache handle
  * @param[in] cfg Cache configuration
  * @param[in] device_cfg Caching device configuration
  *
@@ -409,7 +376,7 @@ int ocf_mngt_cache_load(ocf_ctx_t ctx, ocf_cache_t *cache,
  * @brief Add core to cache instance
  *
  * @param[in] cache Cache handle
- * @param[in] core Core object handle
+ * @param[out] core Core object handle
  * @param[in] cfg Core configuration
  *
  * @retval 0 Core successfully added core to cache
@@ -419,45 +386,24 @@ int ocf_mngt_cache_add_core(ocf_cache_t cache, ocf_core_t *core,
 		struct ocf_mngt_core_config *cfg);
 
 /**
- * @brief Add core to cache instance without acquiring cache lock - caller is
-			required to hold cache write lock when calling this
- *
- * @param[in] cache Cache handle
- * @param[in] core Core object handle
- * @param[in] cfg Core configuration
- *
- * @retval 0 Core successfully added core to cache
- * @retval Non-zero Error occurred and adding core failed
- */
-int ocf_mngt_cache_add_core_nolock(ocf_cache_t cache, ocf_core_t *core,
-		struct ocf_mngt_core_config *cfg);
-
-/**
  * @brief Remove core from cache instance
  *
- * @param[in] cache Cache handle
- * @param[in] core_id Core ID
- * @param[in] detach only detach core without removing it from cache metadata
+ * @param[in] cache Core handle
  *
- * @retval 0 Core successfully removed core from cache
- * @retval Non-zero Error occurred and removing  core failed
+ * @retval 0 Core successfully removed from cache
+ * @retval Non-zero Error occurred and removing core failed
  */
-int ocf_mngt_cache_remove_core(ocf_cache_t cache, ocf_core_id_t core_id,
-		bool detach);
+int ocf_mngt_cache_remove_core(ocf_core_t core);
 
 /**
- * @brief Remove core from cache instance without acquiring cache lock - caller
- *		is required to hold cache write lock when calling this
+ * @brief Detach core from cache instance
  *
- * @param[in] cache Cache handle
- * @param[in] core_id Core ID
- * @param[in] detach only detach core without removing it from cache metadata
+ * @param[in] core Core handle
  *
- * @retval 0 Core successfully removed core from cache
- * @retval Non-zero Error occurred and removing  core failed
+ * @retval 0 Core successfully detached from cache
+ * @retval Non-zero Error occurred and detaching core failed
  */
-int ocf_mngt_cache_remove_core_nolock(ocf_cache_t cache, ocf_core_id_t core_id,
-		bool detach);
+int ocf_mngt_cache_detach_core(ocf_core_t core);
 
 /* Flush operations */
 
@@ -473,44 +419,18 @@ int ocf_mngt_cache_remove_core_nolock(ocf_cache_t cache, ocf_core_id_t core_id,
 int ocf_mngt_cache_flush(ocf_cache_t cache, bool interruption);
 
 /**
- * @brief Flush data from given cache without acquiring cache lock - caller is
- *		required to hold cache write OR read lock when calling this
- *
- * @param[in] cache Cache handle
- * @param[in] interruption Allow for interruption
- *
- * @retval 0 Successfully flushed given cache
- * @retval Non-zero Error occurred and flushing cache failed
- */
-int ocf_mngt_cache_flush_nolock(ocf_cache_t cache, bool interruption);
-
-/**
  * @brief Flush data to given core
  *
- * @param[in] cache Cache handle
- * @param[in] id Core ID
+ * @param[in] core Core handle
  * @param[in] interruption Allow for interruption
  *
  * @retval 0 Successfully flushed data to given core
  * @retval Non-zero Error occurred and flushing data to core failed
  */
-int ocf_mngt_core_flush(ocf_cache_t cache, ocf_core_id_t id, bool interruption);
+int ocf_mngt_core_flush(ocf_core_t core, bool interruption);
 
 /**
- * @brief Flush data to given core without acquiring cache lock - caller is
- *		required to hold cache write OR read lock when calling this
- *
- * @param[in] cache Cache handle
- * @param[in] id Core ID
- * @param[in] interruption Allow for interruption
- *
- * @retval 0 Successfully flushed data to given core
- * @retval Non-zero Error occurred and flushing data to core failed
- */
-int ocf_mngt_core_flush_nolock(ocf_cache_t cache, ocf_core_id_t id,
-		bool interruption);
-/**
- * @brief Interrupt existing flushing of cache or cache
+ * @brief Interrupt existing flushing of cache or core
  *
  * @param[in] cache Cache instance
  *
@@ -522,14 +442,13 @@ int ocf_mngt_cache_flush_interrupt(ocf_cache_t cache);
 /**
  * @brief Purge data to given core
  *
- * @param[in] cache Cache handle
- * @param[in] id Core ID
+ * @param[in] core Core handle
  * @param[in] interruption Allow for interruption
  *
  * @retval 0 Successfully purged data to given core
  * @retval Non-zero Error occurred and purging data to core failed
  */
-int ocf_mngt_core_purge(ocf_cache_t cache, ocf_core_id_t id, bool interruption);
+int ocf_mngt_core_purge(ocf_core_t core, bool interruption);
 /**
  * @brief Purge data from given cache
  *
@@ -624,8 +543,12 @@ struct ocf_mngt_io_class_config {
 	uint32_t max_size;
 };
 
+struct ocf_mngt_io_classes_config {
+	struct ocf_mngt_io_class_config config[OCF_IO_CLASS_MAX];
+};
+
 /**
- * @brief Configure IO class in given cache
+ * @brief Configure IO classes in given cache
  *
  * @param[in] cache Cache handle
  * @param[in] cfg IO class configuration
@@ -633,59 +556,77 @@ struct ocf_mngt_io_class_config {
  * @retval 0 Configuration have been set successfully
  * @retval Non-zero Error occurred and configuration not been set
  */
-int ocf_mngt_io_class_configure(ocf_cache_t cache,
-		const struct ocf_mngt_io_class_config *cfg);
+int ocf_mngt_cache_io_classes_configure(ocf_cache_t cache,
+		const struct ocf_mngt_io_classes_config *cfg);
 
 /**
  * @brief Set core sequential cutoff threshold
  *
- * @param[in] cache Cache handle
- * @param[in] core_id Core ID
+ * @param[in] core Core handle
  * @param[in] thresh threshold in bytes for sequential cutoff
  *
  * @retval 0 Sequential cutoff threshold has been set successfully
  * @retval Non-zero Error occured and threshold hasn't been updated
  */
-int ocf_mngt_set_seq_cutoff_threshold(ocf_cache_t cache, ocf_core_id_t core_id,
-		uint32_t thresh);
+int ocf_mngt_core_set_seq_cutoff_threshold(ocf_core_t core, uint32_t thresh);
 
 /**
- * @brief Set core sequential cutoff policy
+ * @brief Set sequential cutoff threshold for all cores in cache
  *
  * @param[in] cache Cache handle
- * @param[in] core_id Core ID
- * @param[in] policy sequential cutoff policy
+ * @param[in] thresh threshold in bytes for sequential cutoff
  *
- * @retval 0 Sequential cutoff policy has been set successfully
- * @retval Non-zero Error occured and policy hasn't been updated
+ * @retval 0 Sequential cutoff threshold has been set successfully
+ * @retval Non-zero Error occured and threshold hasn't been updated
  */
-int ocf_mngt_set_seq_cutoff_policy(ocf_cache_t cache, ocf_core_id_t core_id,
-		ocf_seq_cutoff_policy policy);
+int ocf_mngt_core_set_seq_cutoff_threshold_all(ocf_cache_t cache,
+		uint32_t thresh);
 
 /**
  * @brief Get core sequential cutoff threshold
  *
- * @param[in] cache Cache handle
- * @param[in] core_id Core ID
+ * @param[in] core Core handle
  * @param[in] thresh threshold in bytes for sequential cutoff
  *
  * @retval 0 Sequential cutoff threshold has been get successfully
  * @retval Non-zero Error occured
  */
-int ocf_mngt_get_seq_cutoff_threshold(ocf_cache_t cache, ocf_core_id_t core_id,
-		uint32_t *thresh);
+int ocf_mngt_core_get_seq_cutoff_threshold(ocf_core_t core, uint32_t *thresh);
+
+/**
+ * @brief Set core sequential cutoff policy
+ *
+ * @param[in] core Core handle
+ * @param[in] policy sequential cutoff policy
+ *
+ * @retval 0 Sequential cutoff policy has been set successfully
+ * @retval Non-zero Error occured and policy hasn't been updated
+ */
+int ocf_mngt_core_set_seq_cutoff_policy(ocf_core_t core,
+		ocf_seq_cutoff_policy policy);
+
+/**
+ * @brief Set sequential cutoff policy for all cores in cache
+ *
+ * @param[in] cache Cache handle
+ * @param[in] policy sequential cutoff policy
+ *
+ * @retval 0 Sequential cutoff policy has been set successfully
+ * @retval Non-zero Error occured and policy hasn't been updated
+ */
+int ocf_mngt_core_set_seq_cutoff_policy_all(ocf_cache_t cache,
+		ocf_seq_cutoff_policy policy);
 
 /**
  * @brief Get core sequential cutoff policy
  *
- * @param[in] cache Cache handle
- * @param[in] core_id Core ID
+ * @param[in] core Core handle
  * @param[in] policy sequential cutoff policy
  *
  * @retval 0 Sequential cutoff policy has been get successfully
  * @retval Non-zero Error occured
  */
-int ocf_mngt_get_seq_cutoff_policy(ocf_cache_t cache, ocf_core_id_t core_id,
+int ocf_mngt_core_get_seq_cutoff_policy(ocf_core_t core,
 		ocf_seq_cutoff_policy *policy);
 
 /**
@@ -754,8 +695,8 @@ int ocf_mngt_core_pool_get_count(ocf_ctx_t ctx);
  * @brief Add core to pool
  *
  * @param[in] ctx OCF context
- * @param[in] uuid Cache data object UUID
- * @param[in] type OCF core data object type
+ * @param[in] uuid Cache volume UUID
+ * @param[in] type OCF core volume type
  *
  * @retval 0 Core added to pool successfully
  * @retval Non-zero Error occurred and adding core to poll failed
@@ -766,14 +707,14 @@ int ocf_mngt_core_pool_add(ocf_ctx_t ctx, ocf_uuid_t uuid, uint8_t type);
  * @brief Add core to pool
  *
  * @param[in] ctx OCF context
- * @param[in] uuid Cache data object UUID
- * @param[in] type OCF core data object type
+ * @param[in] uuid Cache volume UUID
+ * @param[in] type OCF core volume type
  *
  * @retval Handler to object with same UUID
  * @retval NULL Not found object with that id
  */
-ocf_data_obj_t ocf_mngt_core_pool_lookup(ocf_ctx_t ctx, ocf_uuid_t uuid,
-		ocf_data_obj_type_t type);
+ocf_volume_t ocf_mngt_core_pool_lookup(ocf_ctx_t ctx, ocf_uuid_t uuid,
+		ocf_volume_type_t type);
 /**
  * @brief Iterate over all object in pool and call visitor callback
  *
@@ -788,20 +729,15 @@ int ocf_mngt_core_pool_visit(ocf_ctx_t ctx,
 		int (*visitor)(ocf_uuid_t, void *), void *visitor_ctx);
 
 /**
- * @brief Remove core from pool
+ * @brief Remove volume from pool
+ *
+ * Important: This function destroys volume instance but doesn't close it,
+ * so it should be either moved or closed before calling this function.
  *
  * @param[in] ctx OCF context
- * @param[in] obj Core data object
+ * @param[in] volume Core volume
  */
-void ocf_mngt_core_pool_remove(ocf_ctx_t ctx, ocf_data_obj_t obj);
-
-/**
- * @brief Close and remove core from pool
- *
- * @param[in] ctx OCF context
- * @param[in] obj Core data object
- */
-void ocf_mngt_core_pool_close_and_remove(ocf_ctx_t ctx, ocf_data_obj_t obj);
+void ocf_mngt_core_pool_remove(ocf_ctx_t ctx, ocf_volume_t volume);
 
 /**
  * @brief Deinit core pool

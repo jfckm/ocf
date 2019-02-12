@@ -9,7 +9,7 @@
 #include "ocf/ocf.h"
 #include "ocf_env.h"
 #include "ocf_ctx_priv.h"
-#include "ocf_data_obj_priv.h"
+#include "ocf_volume_priv.h"
 
 #define ocf_core_log_prefix(core, lvl, prefix, fmt, ...) \
 	ocf_cache_log_prefix(ocf_core_get_cache(core), lvl, ".%s" prefix, \
@@ -24,13 +24,19 @@ struct ocf_core_io {
 
 	struct ocf_request *req;
 	ctx_data_t *data;
+
+	log_sid_t sid;
+	/*!< Sequence ID */
+
+	uint64_t timestamp;
+	/*!< Timestamp */
 };
 
 struct ocf_core {
 	char name[OCF_CORE_NAME_SIZE];
 
-	struct ocf_data_obj front_obj;
-	struct ocf_data_obj obj;
+	struct ocf_volume front_volume;
+	struct ocf_volume volume;
 
 	struct {
 		uint64_t last;
@@ -50,8 +56,8 @@ bool ocf_core_is_valid(ocf_cache_t cache, ocf_core_id_t id);
 
 int ocf_core_set_user_metadata_raw(ocf_core_t core, void *data, size_t size);
 
-int ocf_core_data_obj_type_init(ocf_ctx_t ctx);
+int ocf_core_volume_type_init(ocf_ctx_t ctx);
 
-void ocf_core_data_obj_type_deinit(ocf_ctx_t ctx);
+void ocf_core_volume_type_deinit(ocf_ctx_t ctx);
 
 #endif /* __OCF_CORE_PRIV_H__ */

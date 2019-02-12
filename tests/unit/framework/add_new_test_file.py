@@ -46,12 +46,12 @@ class TestGenerator(object):
 		buf += self.get_UT_includes()
 		buf += self.get_includes(self.get_main_tested_dir() + self.get_tested_file_path())
 		buf += self.get_empty_test_function()
-		buf += self.get_test_main(self.get_tested_file_path())
+		buf += self.get_test_main()
 
 		with open(dst_path, "w") as f:
-			code = f.writelines(buf)
+			f.writelines(buf)
 
-		print dst_path + " generated succesfully!"
+		print dst_path + " generated successfully!"
 
 	def get_markups(self):
 		ret = "/*\n"
@@ -86,9 +86,6 @@ class TestGenerator(object):
 		return textwrap.dedent(ret)
 
 	def get_includes(self, abs_path_to_tested_file):
-		ret = []
-		code = []
-
 		with open(abs_path_to_tested_file, "r") as f:
 			code = f.readlines()
 
@@ -105,7 +102,7 @@ class TestGenerator(object):
 
 		return ret
 
-	def get_test_main(self, rel_path):
+	def get_test_main(self):
 		ret = "int main(void)\n"
 		ret += "{\n"
 		ret += "\tconst struct CMUnitTest tests[] = {\n"

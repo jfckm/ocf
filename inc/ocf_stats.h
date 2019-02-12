@@ -129,19 +129,19 @@ struct ocf_stats_core {
 	/** Write requests statistics */
 	struct ocf_stats_req write_reqs;
 
-	/** Block requests for cache data object statistics */
-	struct ocf_stats_block cache_obj;
+	/** Block requests for cache volume statistics */
+	struct ocf_stats_block cache_volume;
 
-	/** Block requests for core data object statistics */
-	struct ocf_stats_block core_obj;
+	/** Block requests for core volume statistics */
+	struct ocf_stats_block core_volume;
 
 	/** Block requests submitted by user to this core */
 	struct ocf_stats_block core;
 
-	/** Cache data object error statistics */
+	/** Cache volume error statistics */
 	struct ocf_stats_error cache_errors;
 
-	/** Core data object error statistics */
+	/** Core volume error statistics */
 	struct ocf_stats_error core_errors;
 
 	/** Debug statistics */
@@ -155,28 +155,37 @@ struct ocf_stats_core {
 };
 
 /**
- * @brief Initialize or reset statistics.
+ * @brief Initialize or reset core statistics
  *
  * Initialize or reset counters used for statistics.
  *
- * @param[in] cache OCF cache device handle
- * @param[in] core_id Id of core for which statistics should be initialized.
+ * @param[in] core Core handle
  */
-int ocf_stats_initialize(ocf_cache_t cache, ocf_core_id_t core_id);
+void ocf_core_stats_initialize(ocf_core_t core);
 
 /**
- * @brief ocf_io_class_get_stats retrieve cache statistics
+ * @brief Initialize or reset statistics of all cores in cache
+ *
+ * Initialize or reset counters used for statistics.
+ *
+ * @param[in] cache Cache handle
+ */
+void ocf_core_stats_initialize_all(ocf_cache_t cache);
+
+/**
+ * @brief ocf_core_io_class_get_stats retrieve io class statistics
+ *			for given core
  *
  * Retrieve buffer of cache statistics for given cache instance.
  *
- * @param[in] core core ID to which request pertains
- * @param[in] io_class IO class, stats of which are requested
- * @param[out] stats statistics structure that shall be filled as
+ * @param[in] core core handle to which request pertains
+ * @param[in] part_id IO class, stats of which are requested
+ * @param[out] stats statistic structure that shall be filled as
  *             a result of this function invocation.
  *
  * @result zero upon successful completion; error code otherwise
  */
-int ocf_io_class_get_stats(ocf_core_t core, uint32_t io_class,
+int ocf_core_io_class_get_stats(ocf_core_t core, ocf_part_id_t part_id,
 		struct ocf_stats_io_class *stats);
 
 /**

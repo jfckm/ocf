@@ -12,7 +12,7 @@
  */
 
 #include "ocf_types.h"
-#include "ocf_data_obj.h"
+#include "ocf_volume.h"
 #include "ocf_logger.h"
 
 /**
@@ -26,20 +26,9 @@ typedef enum {
 } ctx_data_seek_t;
 
 /**
- * @brief OCF context specific operation
+ * @brief Context data representation ops
  */
-struct ocf_ctx_ops {
-	/**
-	 * @brief The name of the environment which provides platform
-	 * interface for cache engine
-	 */
-	const char *name;
-
-	/**
-	 * @name Context data buffer operations
-	 * @{
-	 */
-
+struct ocf_data_ops {
 	/**
 	 * @brief Allocate contest data buffer
 	 *
@@ -47,14 +36,14 @@ struct ocf_ctx_ops {
 	 *
 	 * @return Context data buffer
 	 */
-	ctx_data_t *(*data_alloc)(uint32_t pages);
+	ctx_data_t *(*alloc)(uint32_t pages);
 
 	/**
 	 * @brief Free context data buffer
 	 *
 	 * @param[in] data Contex data buffer which shall be freed
 	 */
-	void (*data_free)(ctx_data_t *data);
+	void (*free)(ctx_data_t *data);
 
 	/**
 	 * @brief Lock context data buffer to disable swap-out
@@ -64,14 +53,14 @@ struct ocf_ctx_ops {
 	 * @retval 0 Memory locked successfully
 	 * @retval Non-zero Memory locking failure
 	 */
-	int (*data_mlock)(ctx_data_t *data);
+	int (*mlock)(ctx_data_t *data);
 
 	/**
 	 * @brief Unlock context data buffer
 	 *
 	 * @param[in] data Contex data buffer which shall be unlocked
 	 */
-	void (*data_munlock)(ctx_data_t *data);
+	void (*munlock)(ctx_data_t *data);
 
 	/**
 	 * @brief Read from environment data buffer into raw data buffer
@@ -82,7 +71,7 @@ struct ocf_ctx_ops {
 	 *
 	 * @return Number of read bytes
 	 */
-	uint32_t (*data_rd)(void *dst, ctx_data_t *src, uint32_t size);
+	uint32_t (*read)(void *dst, ctx_data_t *src, uint32_t size);
 
 	/**
 	 * @brief Write raw data buffer into context data buffer
@@ -93,7 +82,7 @@ struct ocf_ctx_ops {
 	 *
 	 * @return Number of written bytes
 	 */
-	uint32_t (*data_wr)(ctx_data_t *dst, const void *src, uint32_t size);
+	uint32_t (*write)(ctx_data_t *dst, const void *src, uint32_t size);
 
 	/**
 	 * @brief Zero context data buffer
@@ -103,7 +92,7 @@ struct ocf_ctx_ops {
 	 *
 	 * @return Number of zeroed bytes
 	 */
-	uint32_t (*data_zero)(ctx_data_t *dst, uint32_t size);
+	uint32_t (*zero)(ctx_data_t *dst, uint32_t size);
 
 	/**
 	 * @brief Seek read/write head in context data buffer for specified
@@ -115,8 +104,7 @@ struct ocf_ctx_ops {
 	 *
 	 * @return Number of seek bytes
 	 */
-	uint32_t (*data_seek)(ctx_data_t *dst,
-			ctx_data_seek_t seek, uint32_t size);
+	uint32_t (*seek)(ctx_data_t *dst, ctx_data_seek_t seek, uint32_t size);
 
 	/**
 	 * @brief Copy context data buffer content
@@ -129,7 +117,7 @@ struct ocf_ctx_ops {
 	 *
 	 * @return Number of bytes copied
 	 */
-	uint64_t (*data_cpy)(ctx_data_t *dst, ctx_data_t *src,
+	uint64_t (*copy)(ctx_data_t *dst, ctx_data_t *src,
 			uint64_t to, uint64_t from, uint64_t bytes);
 
 	/**
@@ -137,16 +125,13 @@ struct ocf_ctx_ops {
 	 *
 	 * @param[in] dst Contex data buffer which shall be erased
 	 */
-	void (*data_secure_erase)(ctx_data_t *dst);
+	void (*secure_erase)(ctx_data_t *dst);
+};
 
-	/**
-	 * @}
-	 */
-
-	/**
-	 * @name I/O queue operations
-	 * @{
-	 */
+/**
+ * @brief I/O queue operations
+ */
+struct ocf_queue_ops {
 	/**
 	 * @brief Initialize I/O queue.
 	 *
@@ -158,7 +143,7 @@ struct ocf_ctx_ops {
 	 * @retval 0 I/O queue has been initializaed successfully
 	 * @retval Non-zero I/O queue initialization failure
 	 */
-	int (*queue_init)(ocf_queue_t q);
+	int (*init)(ocf_queue_t q);
 
 	/**
 	 * @brief Kick I/O queue processing
@@ -169,7 +154,7 @@ struct ocf_ctx_ops {
 	 *
 	 * @param[in] q I/O queue to be kicked
 	 */
-	void (*queue_kick)(ocf_queue_t q);
+	void (*kick)(ocf_queue_t q);
 
 	/**
 	 * @brief Kick I/O queue processing
@@ -181,23 +166,20 @@ struct ocf_ctx_ops {
 	 *
 	 * @param[in] q I/O queue to be kicked
 	 */
-	void (*queue_kick_sync)(ocf_queue_t q);
+	void (*kick_sync)(ocf_queue_t q);
 
 	/**
 	 * @brief Stop I/O queue
 	 *
 	 * @param[in] q I/O queue beeing stopped
 	 */
-	void (*queue_stop)(ocf_queue_t q);
+	void (*stop)(ocf_queue_t q);
+};
 
-	/**
-	 * @}
-	 */
-
-	/**
-	 * @name Cleaner operations
-	 * @{
-	 */
+/**
+ * @brief Cleaner operations
+ */
+struct ocf_cleaner_ops {
 	/**
 	 * @brief Initialize cleaner.
 	 *
@@ -209,23 +191,20 @@ struct ocf_ctx_ops {
 	 * @retval 0 Cleaner has been initializaed successfully
 	 * @retval Non-zero Cleaner initialization failure
 	 */
-	int (*cleaner_init)(ocf_cleaner_t c);
+	int (*init)(ocf_cleaner_t c);
 
 	/**
 	 * @brief Stop cleaner
 	 *
 	 * @param[in] c Descriptor of cleaner beeing stopped
 	 */
-	void (*cleaner_stop)(ocf_cleaner_t c);
+	void (*stop)(ocf_cleaner_t c);
+};
 
-	/**
-	 * @}
-	 */
-
-	/**
-	 * @name Metadata updater operations
-	 * @{
-	 */
+/**
+ * @brief Metadata updater operations
+ */
+struct ocf_metadata_updater_ops {
 	/**
 	 * @brief Initialize metadata updater.
 	 *
@@ -237,7 +216,7 @@ struct ocf_ctx_ops {
 	 * @retval 0 Metadata updater has been initializaed successfully
 	 * @retval Non-zero I/O queue initialization failure
 	 */
-	int (*metadata_updater_init)(ocf_metadata_updater_t mu);
+	int (*init)(ocf_metadata_updater_t mu);
 
 	/**
 	 * @brief Kick metadata updater processing
@@ -247,90 +226,107 @@ struct ocf_ctx_ops {
 	 *
 	 * @param[in] mu Metadata updater to be kicked
 	 */
-	void (*metadata_updater_kick)(ocf_metadata_updater_t mu);
+	void (*kick)(ocf_metadata_updater_t mu);
 
 	/**
 	 * @brief Stop metadata updater
 	 *
 	 * @param[in] mu Metadata updater beeing stopped
 	 */
-	void (*metadata_updater_stop)(ocf_metadata_updater_t mu);
-
-	/**
-	 * @}
-	 */
+	void (*stop)(ocf_metadata_updater_t mu);
 };
 
 /**
- * @brief Register data object interface
- *
- * @note Type of data object operations is unique and cannot be repeated.
- *
- * @param[in] ctx OCF context
- * @param[in] properties Reference to data object properties
- * @param[in] type_id Type id of data object operations
- *
- * @retval 0 Data object operations registered successfully
- * @retval Non-zero Data object registration failure
+ * @brief OCF context specific operation
  */
-int ocf_ctx_register_data_obj_type(ocf_ctx_t ctx, uint8_t type_id,
-		const struct ocf_data_obj_properties *properties);
+struct ocf_ctx_ops {
+	/* Context data operations */
+	struct ocf_data_ops data;
+
+	/* Queue operations */
+	struct ocf_queue_ops queue;
+
+	/* Cleaner operations */
+	struct ocf_cleaner_ops cleaner;
+
+	/* Metadata updater operations */
+	struct ocf_metadata_updater_ops metadata_updater;
+
+	/* Logger operations */
+	struct ocf_logger_ops logger;
+};
+
+struct ocf_ctx_config {
+	/* Context name */
+	const char *name;
+
+	/* Context operations */
+	const struct ocf_ctx_ops ops;
+
+	/* Context logger priv */
+	void *logger_priv;
+};
 
 /**
- * @brief Unregister data object interface
+ * @brief Register volume interface
+ *
+ * @note Type of volume operations is unique and cannot be repeated.
  *
  * @param[in] ctx OCF context
- * @param[in] type_id Type id of data object operations
+ * @param[in] properties Reference to volume properties
+ * @param[in] type_id Type id of volume operations
+ *
+ * @retval 0 Volume operations registered successfully
+ * @retval Non-zero Volume registration failure
  */
-void ocf_ctx_unregister_data_obj_type(ocf_ctx_t ctx, uint8_t type_id);
+int ocf_ctx_register_volume_type(ocf_ctx_t ctx, uint8_t type_id,
+		const struct ocf_volume_properties *properties);
 
 /**
- * @brief Get data object type operations by type id
+ * @brief Unregister volume interface
  *
  * @param[in] ctx OCF context
- * @param[in] type_id Type id of data object operations which were registered
+ * @param[in] type_id Type id of volume operations
+ */
+void ocf_ctx_unregister_volume_type(ocf_ctx_t ctx, uint8_t type_id);
+
+/**
+ * @brief Get volume type operations by type id
  *
- * @return Data object type
- * @retval NULL When data object operations were not registered
+ * @param[in] ctx OCF context
+ * @param[in] type_id Type id of volume operations which were registered
+ *
+ * @return Volume type
+ * @retval NULL When volume operations were not registered
  * for requested type
  */
-ocf_data_obj_type_t ocf_ctx_get_data_obj_type(ocf_ctx_t ctx, uint8_t type_id);
+ocf_volume_type_t ocf_ctx_get_volume_type(ocf_ctx_t ctx, uint8_t type_id);
 
 /**
- * @brief Get data object type id by type
+ * @brief Get volume type id by type
  *
  * @param[in] ctx OCF context
- * @param[in] type Type of data object operations which were registered
+ * @param[in] type Type of volume operations which were registered
  *
- * @return Data object type id
- * @retval -1 When data object operations were not registered
+ * @return Volume type id
+ * @retval -1 When volume operations were not registered
  * for requested type
  */
-int ocf_ctx_get_data_obj_type_id(ocf_ctx_t ctx, ocf_data_obj_type_t type);
+int ocf_ctx_get_volume_type_id(ocf_ctx_t ctx, ocf_volume_type_t type);
 
 /**
- * @brief Create data object of given type
+ * @brief Create volume of given type
  *
  * @param[in] ctx handle to object designating ocf context
- * @param[out] obj data object handle
- * @param[in] uuid OCF data object UUID
- * @param[in] type_id cache/core object type id
+ * @param[out] volume volume handle
+ * @param[in] uuid OCF volume UUID
+ * @param[in] type_id cache/core volume type id
  *
  * @return Zero when success, othewise en error
  */
 
-int ocf_ctx_data_obj_create(ocf_ctx_t ctx, ocf_data_obj_t *obj,
-		struct ocf_data_obj_uuid *uuid, uint8_t type_id);
-
-/**
- * @brief Set OCF context logger
- *
- * @param[in] ctx OCF context
- * @param[in] logger Structure describing logger
- *
- * @return Zero when success, otherwise an error
- */
-int ocf_ctx_set_logger(ocf_ctx_t ctx, const struct ocf_logger *logger);
+int ocf_ctx_volume_create(ocf_ctx_t ctx, ocf_volume_t *volume,
+		struct ocf_volume_uuid *uuid, uint8_t type_id);
 
 /**
  * @brief Initialize OCF context
@@ -340,7 +336,7 @@ int ocf_ctx_set_logger(ocf_ctx_t ctx, const struct ocf_logger *logger);
  *
  * @return Zero when success, otherwise an error
  */
-int ocf_ctx_init(ocf_ctx_t *ctx, const struct ocf_ctx_ops *ops);
+int ocf_ctx_init(ocf_ctx_t *ctx, const struct ocf_ctx_config *cfg);
 
 /**
  * @brief De-Initialize OCF context

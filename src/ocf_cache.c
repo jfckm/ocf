@@ -10,9 +10,9 @@
 #include "ocf_priv.h"
 #include "ocf_cache_priv.h"
 
-ocf_data_obj_t ocf_cache_get_data_object(ocf_cache_t cache)
+ocf_volume_t ocf_cache_get_volume(ocf_cache_t cache)
 {
-	return ocf_cache_is_device_attached(cache) ? &cache->device->obj : NULL;
+	return ocf_cache_is_device_attached(cache) ? &cache->device->volume : NULL;
 }
 
 ocf_cache_id_t ocf_cache_get_id(ocf_cache_t cache)
@@ -77,23 +77,18 @@ int ocf_cache_get_info(ocf_cache_t cache, struct ocf_cache_info *info)
 	uint64_t core_dirty_since;
 	uint32_t dirty_blocks_inactive = 0;
 	uint32_t cache_occupancy_inactive = 0;
-	int result;
 
 	OCF_CHECK_NULL(cache);
 
 	if (!info)
 		return -OCF_ERR_INVAL;
 
-	result = ocf_mngt_cache_read_lock(cache);
-	if (result)
-		return result;
-
 	ENV_BUG_ON(env_memset(info, sizeof(*info), 0));
 
 	info->attached = ocf_cache_is_device_attached(cache);
 	if (info->attached) {
-		info->data_obj_type = ocf_ctx_get_data_obj_type_id(cache->owner,
-				cache->device->obj.type);
+		info->volume_type = ocf_ctx_get_volume_type_id(cache->owner,
+				cache->device->volume.type);
 		info->size = cache->conf_meta->cachelines;
 	}
 	info->core_count = cache->conf_meta->core_count;
@@ -104,7 +99,7 @@ int ocf_cache_get_info(ocf_cache_t cache, struct ocf_cache_info *info)
 	 * valid objects may be not continuous
 	 */
 	for (i = 0; i != OCF_CORE_MAX; ++i) {
-		if (!env_bit_test(i, cache->conf_meta->valid_object_bitmap))
+		if (!env_bit_test(i, cache->conf_meta->valid_core_bitmap))
 			continue;
 
 		/* If current dirty blocks exceeds saved initial dirty
@@ -172,17 +167,15 @@ int ocf_cache_get_info(ocf_cache_t cache, struct ocf_cache_info *info)
 			ocf_metadata_size_of(cache) : 0;
 	info->cache_line_size = ocf_line_size(cache);
 
-	ocf_mngt_cache_read_unlock(cache);
-
 	return 0;
 }
 
-const struct ocf_data_obj_uuid *ocf_cache_get_uuid(ocf_cache_t cache)
+const struct ocf_volume_uuid *ocf_cache_get_uuid(ocf_cache_t cache)
 {
 	if (!ocf_cache_is_device_attached(cache))
 		return NULL;
 
-	return ocf_dobj_get_uuid(ocf_cache_get_data_object(cache));
+	return ocf_volume_get_uuid(ocf_cache_get_volume(cache));
 }
 
 uint8_t ocf_cache_get_type_id(ocf_cache_t cache)
@@ -190,8 +183,8 @@ uint8_t ocf_cache_get_type_id(ocf_cache_t cache)
 	if (!ocf_cache_is_device_attached(cache))
 		return 0xff;
 
-	return ocf_ctx_get_data_obj_type_id(ocf_cache_get_ctx(cache),
-		ocf_dobj_get_type(ocf_cache_get_data_object(cache)));
+	return ocf_ctx_get_volume_type_id(ocf_cache_get_ctx(cache),
+		ocf_volume_get_type(ocf_cache_get_volume(cache)));
 }
 
 ocf_cache_line_size_t ocf_cache_get_line_size(ocf_cache_t cache)
@@ -216,4 +209,16 @@ ocf_ctx_t ocf_cache_get_ctx(ocf_cache_t cache)
 {
 	OCF_CHECK_NULL(cache);
 	return cache->owner;
+}
+
+void ocf_cache_set_priv(ocf_cache_t cache, void *priv)
+{
+	OCF_CHECK_NULL(cache);
+	cache->priv = priv;
+}
+
+void *ocf_cache_get_priv(ocf_cache_t cache)
+{
+	OCF_CHECK_NULL(cache);
+	return cache->priv;
 }

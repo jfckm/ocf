@@ -46,8 +46,7 @@ static struct ocf_io_if meta_restart_if = {
  */
 static uint32_t metadata_io_max_page(struct ocf_cache *cache)
 {
-	return ocf_dobj_get_max_io_size(&cache->device->obj) /
-			BYTES_TO_SECTORS(PAGE_SIZE);
+	return ocf_volume_get_max_io_size(&cache->device->volume) / PAGE_SIZE;
 }
 
 /*
@@ -57,7 +56,7 @@ static void metadata_io_read_i_atomic_end(struct ocf_io *io, int error)
 {
 	struct metadata_io_request_atomic *meta_atom_req = io->priv1;
 
-	OCF_DEBUG_TRACE(ocf_dobj_get_cache(io->obj));
+	OCF_DEBUG_TRACE(ocf_volume_get_cache(io->volume));
 
 	meta_atom_req->error |= error;
 	env_completion_complete(&meta_atom_req->complete);
@@ -120,7 +119,7 @@ int metadata_io_read_i_atomic(struct ocf_cache *cache,
 		}
 
 		/* Submit IO */
-		ocf_dobj_submit_metadata(io);
+		ocf_volume_submit_metadata(io);
 		ocf_io_put(io);
 
 		/* Wait for completion of IO */
@@ -195,7 +194,7 @@ static int ocf_restart_meta_io(struct ocf_request *req)
 		metadata_io_write_i_asynch_end(meta_io_req, ret);
 		return ret;
 	}
-	ocf_dobj_submit_io(io);
+	ocf_volume_submit_io(io);
 	return 0;
 }
 
@@ -377,7 +376,7 @@ int metadata_io_write_i_asynch(struct ocf_cache *cache, uint32_t queue,
 				break;
 			}
 
-			ocf_dobj_submit_io(io);
+			ocf_volume_submit_io(io);
 		}
 
 		count -= curr_count;
@@ -508,7 +507,7 @@ static int metadata_submit_io(
 
 	/* Submit IO */
 	env_atomic_inc(&mio->req_remaining);
-	ocf_dobj_submit_io(io);
+	ocf_volume_submit_io(io);
 
 	return 0;
 

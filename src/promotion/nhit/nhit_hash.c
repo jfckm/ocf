@@ -350,9 +350,9 @@ void nhit_hash_insert(nhit_hash_t ctx, ocf_core_id_t core_id, uint64_t core_lba)
 	collision_remove(ctx, slot_id);
 	collision_insert_new(ctx, slot_id, core_id, core_lba);
 
-	write_unlock_hashes(ctx, core_id, core_lba, slot_core_id, slot_core_lba);
-
 	commit_rb_slot(ctx, slot_id);
+
+	write_unlock_hashes(ctx, core_id, core_lba, slot_core_id, slot_core_lba);
 }
 
 bool nhit_hash_query(nhit_hash_t ctx, ocf_core_id_t core_id, uint64_t core_lba,

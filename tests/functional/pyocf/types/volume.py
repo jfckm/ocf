@@ -73,11 +73,9 @@ class VolumeProperties(Structure):
 class VolumeIoPriv(Structure):
     _fields_ = [("_data", c_void_p), ("_offset", c_uint64)]
 
+VOLUME_POISON = 0x13
 
-class Volume(Structure):
-    VOLUME_POISON = 0x13
-
-    _fields_ = [("_storage", c_void_p)]
+class Volume():
     _instances_ = weakref.WeakValueDictionary()
     _uuid_ = weakref.WeakValueDictionary()
 
@@ -98,8 +96,8 @@ class Volume(Structure):
         type(self)._uuid_[self.uuid] = self
 
         self.data = create_string_buffer(int(self.size))
-        memset(self.data, self.VOLUME_POISON, self.size)
-        self._storage = cast(self.data, c_void_p)
+        memset(self.data, VOLUME_POISON, self.size)
+        self.data_ptr = cast(self.data, c_void_p).value
 
         self.reset_stats()
         self.opened = False
@@ -260,7 +258,7 @@ class Volume(Structure):
         self.size = size
         self.data = create_string_buffer(int(self.size))
         memset(self.data, self.VOLUME_POISON, self.size)
-        self._storage = cast(self.data, c_void_p)
+        self.data_ptr = cast(self.data, c_void_p)
 
     def get_max_io_size(self):
         return S.from_KiB(128)
@@ -270,7 +268,7 @@ class Volume(Structure):
 
     def submit_discard(self, discard):
         try:
-            dst = self._storage + discard.contents._addr
+            dst = self.data_ptr + discard.contents._addr
             memset(dst, 0, discard.contents._bytes)
 
             discard.contents._end(discard, 0)
@@ -294,11 +292,11 @@ class Volume(Structure):
             if io.contents._dir == IoDir.WRITE:
                 src_ptr = cast(OcfLib.getInstance().ocf_io_get_data(io), c_void_p)
                 src = Data.get_instance(src_ptr.value).handle.value + offset
-                dst = self._storage + io.contents._addr
+                dst = self.data_ptr + io.contents._addr
             elif io.contents._dir == IoDir.READ:
                 dst_ptr = cast(OcfLib.getInstance().ocf_io_get_data(io), c_void_p)
                 dst = Data.get_instance(dst_ptr.value).handle.value + offset
-                src = self._storage + io.contents._addr
+                src = self.data_ptr + io.contents._addr
 
             memmove(dst, src, io.contents._bytes)
             io_priv.contents._offset += io.contents._bytes
@@ -311,15 +309,15 @@ class Volume(Structure):
         if size == 0:
             size = int(self.size) - int(offset)
 
-        print_buffer(self._storage, size, ignore=ignore, **kwargs)
+        print_buffer(self.data_ptr, size, ignore=ignore, **kwargs)
 
     def md5(self):
         m = md5()
-        m.update(string_at(self._storage, self.size))
+        m.update(string_at(self.data_ptr, self.size))
         return m.hexdigest()
 
     def get_bytes(self):
-        return string_at(self._storage, self.size)
+        return string_at(self.data_ptr, self.size)
 
 
 class ErrorDevice(Volume):

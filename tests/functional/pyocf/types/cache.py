@@ -35,7 +35,7 @@ from ..utils import Size, struct_to_dict
 from .core import Core
 from .queue import Queue
 from .stats.cache import CacheInfo
-from .io import IoDir
+from .io import IoDir, Io
 from .ioclass import IoClassesInfo, IoClassInfo
 from .stats.shared import UsageStats, RequestsStats, BlocksStats, ErrorsStats
 from .ctx import OcfCtx
@@ -80,6 +80,11 @@ class CacheAttachConfig(Structure):
         ("_volume_params", c_void_p),
     ]
 
+class CacheStandbyActivateConfig(Structure):
+    _fields_ = [
+        ("_device", CacheDeviceConfig),
+        ("_open_cores", c_bool),
+    ]
 
 class ConfValidValues:
     promotion_nhit_insertion_threshold_range = range(2, 1000)
@@ -241,6 +246,31 @@ class Cache:
 
         self.started = True
         self.owner.caches.append(self)
+
+    def standby_detach(self):
+        self.write_lock()
+        c = OcfCompletion([("cache", c_void_p), ("priv", c_void_p), ("error", c_int)])
+        self.owner.lib.ocf_mngt_cache_standby_detach(self, c, None)
+        c.wait()
+        self.write_unlock()
+
+        if c.results["error"]:
+            raise OcfError("Failed to detach failover cache device", c.results["error"])
+
+    def standby_activate(self, volume, open_cores=True):
+        activate_config = self.generate_activate_config(
+            volume, open_cores=open_cores, perform_test=False
+        )
+
+        self.write_lock()
+        c = OcfCompletion([("cache", c_void_p), ("priv", c_void_p), ("error", c_int)])
+        self.owner.lib.ocf_mngt_cache_standby_activate(
+                self.cache_handle, byref(activate_cfg), c, None)
+        c.wait()
+        self.write_unlock()
+
+        if c.results["error"]:
+            raise OcfError("Failed to activate standby cache", c.results["error"])
 
     def change_cache_mode(self, cache_mode: CacheMode):
         self.write_lock()
@@ -444,6 +474,19 @@ class Cache:
         if status:
             raise OcfError("Error adding partition to cache", status)
 
+    def generate_device_config(device, perform_test=True):
+        device_config = CacheDeviceConfig(
+            _uuid=Uuid(
+                _data=cast(create_string_buffer(device.uuid.encode("ascii")), c_char_p),
+                _size=len(device.uuid) + 1,
+            ),
+            _volume_type=device.type_id,
+            _perform_test=perform_test,
+            _volume_params=None,
+        )
+
+        return device_config
+
     def generate_attach_config(
         self,
         device,
@@ -456,14 +499,8 @@ class Cache:
         self.device = device
         self.device_name = device.uuid
 
-        device_config = CacheDeviceConfig(
-            _uuid=Uuid(
-                _data=cast(create_string_buffer(device.uuid.encode("ascii")), c_char_p),
-                _size=len(device.uuid) + 1,
-            ),
-            _volume_type=device.type_id,
-            _perform_test=perform_test,
-            _volume_params=None,
+        device_config = generate_device_config(
+            device, perform_test=peform_test
         )
 
         attach_cfg = CacheAttachConfig(
@@ -478,9 +515,22 @@ class Cache:
 
         return attach_cfg
 
+    def generate_activate_config(
+            self, device, open_cores = True, perform_test=False
+    ):
+        device_config = generate_device_config(
+            device, perform_test=peform_test
+        )
 
-    def attach_device(
-        self, device, force=False, perform_test=False, cache_line_size=None, open_cores=True
+        activate_cfg = CacheStandbyActivateConfig(
+            _device=device_config,
+            _open_cores=open_cores,
+        )
+
+        return activate_config
+
+    def _attach_device(
+        self, device, standby=False, force=False, perform_test=False, cache_line_size=None, open_cores=True
     ):
         attach_cfg = self.generate_attach_config(
             device,
@@ -496,15 +546,41 @@ class Cache:
 
         c = OcfCompletion([("cache", c_void_p), ("priv", c_void_p), ("error", c_int)])
 
-        self.owner.lib.ocf_mngt_cache_attach(
-            self.cache_handle, byref(attach_cfg), c, None
-        )
+        if not standby:
+            self.owner.lib.ocf_mngt_cache_attach(
+                self.cache_handle, byref(attach_cfg), c, None
+            )
+        else:
+            self.owner.lib.ocf_mngt_cache_standby_attach(
+                self.cache_handle, byref(attach_cfg), c, None
+            )
 
         c.wait()
         self.write_unlock()
 
         if c.results["error"]:
-            raise OcfError("Attaching cache device failed", c.results["error"])
+            raise OcfError(f"{'Starting standby' if standby else 'Attaching'} : cache device failed", c.results["error"])
+
+    def attach_device(
+        self, device, force=False, perform_test=False, cache_line_size=None, open_cores=False
+    ):
+        self._attach_device(device, standby=False, force=force, perform_test=perform_test,
+                cache_line_size=cache_line_size, open_cores=open_cores)
+
+    def standby_attach(self, device, force=False):
+        self._attach_device(device, standby=True, force=force, perform_test=False)
+
+    def standby_load(self, device):
+        attach_cfg = self.generate_attach_config(device, open_cores=False)
+
+        c = OcfCompletion([("cache", c_void_p), ("priv", c_void_p), ("error", c_int)])
+        self.owner.lib.ocf_mngt_cache_standby_load(
+            self.cache_handle, byref(attach_cfg), c, None
+        )
+
+        c.wait()
+        if c.results["error"]:
+            raise OcfError("Loading standby cache device failed", c.results["error"])
 
     def detach_device(self):
         self.write_lock()

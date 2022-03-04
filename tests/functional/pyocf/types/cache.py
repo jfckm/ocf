@@ -260,7 +260,7 @@ class Cache:
             raise OcfError("Failed to detach failover cache device", c.results["error"])
 
     def standby_activate(self, volume, open_cores=True):
-        activate_config = self.generate_activate_config(
+        activate_cfg = self.generate_activate_config(
             volume, open_cores=open_cores, perform_test=False
         )
 
@@ -476,6 +476,7 @@ class Cache:
         if status:
             raise OcfError("Error adding partition to cache", status)
 
+    @staticmethod
     def generate_device_config(device, perform_test=True):
         device_config = CacheDeviceConfig(
             _uuid=Uuid(
@@ -501,8 +502,8 @@ class Cache:
         self.device = device
         self.device_name = device.uuid
 
-        device_config = generate_device_config(
-            device, perform_test=peform_test
+        device_config = Cache.generate_device_config(
+            device, perform_test=perform_test
         )
 
         attach_cfg = CacheAttachConfig(
@@ -520,16 +521,16 @@ class Cache:
     def generate_activate_config(
             self, device, open_cores = True, perform_test=False
     ):
-        device_config = generate_device_config(
-            device, perform_test=peform_test
+        device_cfg = Cache.generate_device_config(
+            device, perform_test=perform_test
         )
 
         activate_cfg = CacheStandbyActivateConfig(
-            _device=device_config,
+            _device=device_cfg,
             _open_cores=open_cores,
         )
 
-        return activate_config
+        return activate_cfg
 
     def _attach_device(
         self, device, standby=False, force=False, perform_test=False, cache_line_size=None, open_cores=True

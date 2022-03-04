@@ -80,8 +80,8 @@ def test_load_cache_recovery(pyocf_ctx):
 
 @pytest.mark.parametrize("open_cores", [True, False])
 def test_load_cache_with_cores(pyocf_ctx, open_cores):
-    cache_device = Volume(S.from_MiB(40))
-    core_device = Volume(S.from_MiB(40))
+    cache_device = RamVolume(S.from_MiB(40))
+    core_device = RamVolume(S.from_MiB(40))
 
     cache = Cache.start_on_device(cache_device)
     core = Core.using_device(core_device, name="test_core")

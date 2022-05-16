@@ -141,9 +141,17 @@ err:
 	return ret;
 }
 
+static uint32_t ocf_cl_get_entries_count(struct ocf_alock *alock,
+		struct ocf_request *req)
+{
+	return req->core_line_count;
+}
+
 static struct ocf_alock_lock_cbs ocf_cline_conc_cbs = {
 		.lock_entries_fast = ocf_cl_lock_line_fast,
-		.lock_entries_slow = ocf_cl_lock_line_slow
+		.lock_entries_slow = ocf_cl_lock_line_slow,
+		.get_entries_count = ocf_cl_get_entries_count
+
 };
 
 bool ocf_cache_line_try_lock_rd(struct ocf_alock *alock,
